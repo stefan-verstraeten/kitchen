@@ -1,0 +1,264 @@
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+
+import { aiCompleteRecipe, aiTranslateText } from '../../import/ai';
+import { resolve, t } from '../../domain/localized';
+import { formatQuantity, quantityFor } from '../../domain/quantity';
+import { addCookedDate, addNote, availableLanguages, cookedDates, removeNote, todayIso, touch } from '../../domain/recipe';
+import type { Ingredient, Lang, Note, Recipe } from '../../domain/types';
+import { unitLabel } from '../../domain/units';
+import { useApp } from '../../state/AppContext';
+import { Button, Section, ThermomixBadge, ThermomixChip } from '../../ui/components';
+import { colors, ui } from '../../ui/theme';
+
+const MIN_SERVINGS = 1;
+const MAX_SERVINGS = 40;
+
+function ingredientLine(ing: Ingredient, servings: number, base: number, lang: Lang) {
+  const q = quantityFor(ing, servings, base);
+  const amount = q === undefined ? '' : formatQuantity(q, ing.unit, lang);
+  const numeric = q === undefined ? undefined : typeof q === 'number' ? q : q.max;
+  const unit = ing.unit ? unitLabel(ing.unit, lang, numeric) : t(ing.unitText, lang);
+  return { amount: [amount, unit].filter(Boolean).join(' '), name: resolve(ing.name, lang) };
+}
+
+export default function RecipeScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { store, recipes, lang, s, apiKey } = useApp();
+  const recipe = recipes.find((r) => r.id === id);
+  const [servings, setServings] = useState<number>(recipe?.servings ?? 4);
+  const [noteText, setNoteText] = useState('');
+  const [noteDate, setNoteDate] = useState('');
+  const [translating, setTranslating] = useState(false);
+
+  if (!recipe) return <View style={ui.screen} />;
+
+  const save = (r: Recipe) => store.save(r);
+  const complete = availableLanguages(recipe).includes(lang);
+  const title = resolve(recipe.title, lang);
+  const cooked = cookedDates(recipe);
+  const otherNotes = recipe.notes.filter((n) => n.kind !== 'cooked');
+  const times = recipe.times ?? {};
+
+  const translate = async () => {
+    if (!apiKey) return Alert.alert(s.translate, s.needsApiKey);
+    setTranslating(true);
+    try {
+      const latest = store.get(recipe.id) ?? recipe;
+      await save(touch(await aiCompleteRecipe(apiKey, latest)));
+    } catch (e) {
+      Alert.alert(s.error, e instanceof Error ? e.message : String(e));
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const submitNote = async () => {
+    const text = noteText.trim();
+    if (!text) return;
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(noteDate.trim()) ? noteDate.trim() : undefined;
+    const updated = addNote(recipe, { [lang]: text }, { date });
+    setNoteText('');
+    setNoteDate('');
+    await save(updated);
+    if (apiKey) {
+      // Fill in the other language in the background.
+      const noteId = updated.notes[updated.notes.length - 1].id;
+      aiTranslateText(apiKey, text, lang)
+        .then((both) => {
+          const latest = store.get(recipe.id);
+          if (!latest) return;
+          return save(touch({ ...latest, notes: latest.notes.map((n) => (n.id === noteId ? { ...n, text: both } : n)) }));
+        })
+        .catch(() => undefined);
+    }
+  };
+
+  const confirmDelete = () =>
+    Alert.alert(s.deleteRecipe, s.deleteConfirm, [
+      { text: s.cancel, style: 'cancel' },
+      {
+        text: s.delete,
+        style: 'destructive',
+        onPress: async () => {
+          await store.remove(recipe.id);
+          router.back();
+        },
+      },
+    ]);
+
+  const confirmRemoveNote = (note: Note) =>
+    Alert.alert(s.delete, undefined, [
+      { text: s.cancel, style: 'cancel' },
+      { text: s.delete, style: 'destructive', onPress: () => save(removeNote(recipe, note.id)) },
+    ]);
+
+  // Steps are numbered continuously across groups.
+  const stepOffsets = recipe.stepGroups.map((_, gi) => recipe.stepGroups.slice(0, gi).reduce((n, g) => n + g.steps.length, 0));
+
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+      <Stack.Screen options={{ title: '' }} />
+      {recipe.imageUrl && <Image source={{ uri: recipe.imageUrl }} style={{ width: '100%', aspectRatio: 16 / 10, borderRadius: 12 }} />}
+
+      <Text style={ui.h1}>{title?.text}</Text>
+      {(recipe.source?.author || recipe.source?.siteName) && (
+        <Text style={ui.muted}>{[recipe.source?.author, recipe.source?.siteName].filter(Boolean).join(' · ')}</Text>
+      )}
+      <View style={[ui.row, { flexWrap: 'wrap' }]}>
+        {recipe.thermomix && <ThermomixBadge />}
+        {times.prepMinutes ? <Text style={ui.muted}>{`${s.prep}: ${s.minutes(times.prepMinutes)}`}</Text> : null}
+        {times.cookMinutes ? <Text style={ui.muted}>{`${s.cook}: ${s.minutes(times.cookMinutes)}`}</Text> : null}
+        {times.totalMinutes ? <Text style={ui.muted}>{`${s.total}: ${s.minutes(times.totalMinutes)}`}</Text> : null}
+      </View>
+
+      {!complete && (
+        <View style={[ui.card, { backgroundColor: colors.accentSoft, gap: 8 }]}>
+          <Text style={ui.body}>{lang === 'nl' ? s.notTranslated : s.notTranslatedOther}</Text>
+          {apiKey ? <Button title={translating ? s.translating : s.translate} onPress={translate} busy={translating} /> : <Text style={ui.muted}>{s.needsApiKey}</Text>}
+        </View>
+      )}
+
+      {recipe.description && <Text style={ui.body}>{t(recipe.description, lang)}</Text>}
+
+      <Section
+        title={s.ingredients}
+        right={
+          <View style={ui.row}>
+            <Stepper label="−" onPress={() => setServings((n) => Math.max(MIN_SERVINGS, n - 1))} />
+            <Text style={[ui.h3, { minWidth: 92, textAlign: 'center' }]}>{s.servingsFor(servings)}</Text>
+            <Stepper label="+" onPress={() => setServings((n) => Math.min(MAX_SERVINGS, n + 1))} />
+          </View>
+        }
+      >
+        <View style={ui.card}>
+          {recipe.ingredientGroups.map((group, gi) => (
+            <View key={gi} style={{ gap: 6, marginTop: gi ? 12 : 0 }}>
+              {group.title && <Text style={ui.h3}>{t(group.title, lang)}</Text>}
+              {group.items.map((ing, ii) => {
+                const line = ingredientLine(ing, servings, recipe.servings, lang);
+                return (
+                  <View key={ii} style={{ flexDirection: 'row', gap: 10 }}>
+                    <Text style={[ui.body, { width: 96, fontWeight: '600', textAlign: 'right' }]}>{line.amount}</Text>
+                    <Text style={[ui.body, { flex: 1 }]}>
+                      <Text style={line.name?.isFallback ? { fontStyle: 'italic' } : undefined}>{line.name?.text}</Text>
+                      {ing.note ? <Text style={{ color: colors.muted }}>{`, ${t(ing.note, lang)}`}</Text> : null}
+                      {ing.optional ? <Text style={{ color: colors.muted }}>{` (${s.optional})`}</Text> : null}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+        {recipe.originalServings && recipe.originalServings !== recipe.servings ? (
+          <Text style={ui.muted}>{s.originalServings(recipe.originalServings)}</Text>
+        ) : null}
+      </Section>
+
+      <Section title={s.preparation}>
+        {recipe.stepGroups.map((group, gi) => (
+          <View key={gi} style={{ gap: 10 }}>
+            {group.title && <Text style={ui.h3}>{t(group.title, lang)}</Text>}
+            {group.steps.map((step, si) => {
+              const stepNumber = stepOffsets[gi] + si + 1;
+              const text = resolve(step.text, lang);
+              return (
+                <View key={si} style={[ui.card, { gap: 8 }]}>
+                  <Text style={[ui.muted, { fontWeight: '600' }]}>{s.step(stepNumber)}</Text>
+                  <Text style={[ui.body, text?.isFallback && { fontStyle: 'italic' }]}>{text?.text}</Text>
+                  {step.thermomix?.map((tm, ti) => <ThermomixChip key={ti} setting={tm} lang={lang} />)}
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </Section>
+
+      <Section title={s.notes}>
+        <View style={[ui.card, { gap: 10 }]}>
+          <View style={[ui.row, { justifyContent: 'space-between' }]}>
+            <Text style={ui.h3}>{cooked.length ? s.timesCooked(cooked.length) : s.cookedOn}</Text>
+            <Button title={s.cookedToday} kind="secondary" onPress={() => save(addCookedDate(recipe))} disabled={cooked.includes(todayIso())} />
+          </View>
+          {cooked.length > 0 && <Text style={ui.muted}>{cooked.map((d) => formatDate(d, lang)).join(' · ')}</Text>}
+        </View>
+
+        {otherNotes.length === 0 && <Text style={ui.muted}>{s.noNotes}</Text>}
+        {otherNotes.map((note) => {
+          const text = resolve(note.text, lang);
+          return (
+            <Pressable key={note.id} onLongPress={() => confirmRemoveNote(note)} style={[ui.card, { gap: 4 }]}>
+              {(note.origin === 'source' || note.date) && (
+                <Text style={ui.muted}>{[note.origin === 'source' ? s.tip : undefined, note.date ? formatDate(note.date, lang) : undefined].filter(Boolean).join(' · ')}</Text>
+              )}
+              <Text style={[ui.body, text?.isFallback && { fontStyle: 'italic' }]}>{text?.text}</Text>
+            </Pressable>
+          );
+        })}
+
+        <View style={[ui.card, { gap: 8 }]}>
+          <TextInput
+            style={[ui.input, { minHeight: 70, textAlignVertical: 'top' }]}
+            multiline
+            placeholder={s.notePlaceholder}
+            placeholderTextColor={colors.muted}
+            value={noteText}
+            onChangeText={setNoteText}
+          />
+          <TextInput
+            style={ui.input}
+            placeholder={s.noteDatePlaceholder}
+            placeholderTextColor={colors.muted}
+            value={noteDate}
+            onChangeText={setNoteDate}
+            keyboardType="numbers-and-punctuation"
+          />
+          <Button title={s.addNote} onPress={submitNote} disabled={!noteText.trim()} />
+        </View>
+      </Section>
+
+      {recipe.source && (
+        <Section title={s.source}>
+          <View style={[ui.card, { gap: 6 }]}>
+            {recipe.source.author && <Text style={ui.body}>{recipe.source.author}</Text>}
+            {recipe.source.siteName && <Text style={ui.muted}>{recipe.source.siteName}</Text>}
+            <Pressable onPress={() => Linking.openURL(recipe.source!.url)}>
+              <Text style={[ui.body, { color: colors.accent, textDecorationLine: 'underline' }]}>{s.openOriginal}</Text>
+            </Pressable>
+          </View>
+        </Section>
+      )}
+
+      <View style={{ marginTop: 24 }}>
+        <Button title={s.deleteRecipe} kind="danger" onPress={confirmDelete} />
+      </View>
+    </ScrollView>
+  );
+}
+
+function Stepper({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: colors.accentSoft,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Text style={{ fontSize: 20, color: colors.accent, fontWeight: '700' }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function formatDate(iso: string, lang: Lang): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(lang === 'nl' ? 'nl-BE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
