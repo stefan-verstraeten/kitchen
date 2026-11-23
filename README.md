@@ -26,6 +26,16 @@ format in your Dropbox, and shows everything in Dutch or English.
   undated notes, and keep tips taken from the source. Long-press a note to
   delete it.
 - **Source**: the cook/author, the site, and a link to the original page.
+- **Editor**: tap **Edit** on a recipe, or **Add → Write a recipe yourself**.
+  Ingredients are typed one per line, for 4 people (e.g. `200 g bloem, gezeefd`).
+  Steps can be added, reordered and removed, and Thermomix settings typed in a
+  step (`5 sec./snelheid 5`) are recognised as you type. You edit the language
+  the app is set to. A text you change loses its other-language version, and
+  the app translates it again automatically if a Claude API key is set.
+  Unchanged texts keep their translation.
+- **Share as PDF**: the **PDF** button on a recipe creates a PDF in the current
+  language, for the number of people currently selected, and opens the share
+  sheet, so you can send it to WhatsApp, Mail or Messages, or save it to Files.
 - **Ingredient index**: a searchable list of every ingredient across all your
   recipes. Search works in both languages ("ui", "ajuin" or "onion" all find
   the same entry), and tapping an ingredient lists the recipes that use it.
@@ -112,6 +122,7 @@ src/
   domain/     recipe model, quantity scaling, units, Thermomix parser, ingredient catalog & index
   import/     HTML / JSON-LD parsing, site profiles, Claude extraction & translation
   storage/    Dropbox API client, OAuth (PKCE), offline-first sync
+  export/     printable HTML and PDF sharing
   i18n/       UI text (nl/en)
 tests/        vitest unit tests (parsing, scaling, index, sync/merge)
 ```
@@ -130,5 +141,4 @@ npm run lint
 - The site-specific parsing has only been tested against sample pages built
   from the schema.org recipe format, not against live Cookidoo or Dagelijkse
   Kost pages. Check the first few imports from each site.
-- There is no editor for ingredients or steps yet; you can add notes and
-  cooked dates, translate a recipe, and delete it.
+- The PDF includes your personal notes and cooked dates.

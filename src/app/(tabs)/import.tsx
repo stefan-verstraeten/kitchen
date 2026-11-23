@@ -108,6 +108,10 @@ export default function ImportScreen() {
           </View>
         )}
         {notice && <Text style={ui.muted}>{notice}</Text>}
+
+        <View style={{ marginTop: 24 }}>
+          <Button title={s.writeYourself} kind="secondary" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: 'new' } })} />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import * as z from 'zod/v4';
 
+import { fillTranslations } from '../domain/editing';
 import { normalizeQuantity } from '../domain/quantity';
 import { newId, noteId } from '../domain/recipe';
 import { parseThermomixSettings } from '../domain/thermomix';
@@ -201,18 +202,9 @@ export async function aiCompleteRecipe(apiKey: string, recipe: Recipe): Promise<
     apiKey,
     `This recipe is for ${BASE_SERVINGS} servings. Complete it so every text exists in both Dutch and English, and assign ingredient keys.\n\n<recipe>\n${JSON.stringify({ ...rest, tips: sourceTips })}\n</recipe>`,
   );
-  const out = toRecipe({ ...ai, servings: BASE_SERVINGS }, { ...recipe, notes });
-  out.originalServings = recipe.originalServings;
-  out.tags = recipe.tags;
-  out.times = recipe.times ?? out.times;
-  // Prefer locally parsed Thermomix settings from the original text when present.
-  out.stepGroups.forEach((g, gi) =>
-    g.steps.forEach((s, si) => {
-      const orig = recipe.stepGroups[gi]?.steps[si]?.thermomix;
-      if (orig?.length) s.thermomix = orig;
-    }),
-  );
-  return out;
+  const translated = toRecipe({ ...ai, servings: BASE_SERVINGS }, { ...recipe, notes });
+  // Keep everything that already exists; only fill in missing languages.
+  return { ...fillTranslations(recipe, translated), updatedAt: new Date().toISOString() };
 }
 
 export async function aiTranslateText(apiKey: string, text: string, from: Lang): Promise<Localized> {
@@ -226,4 +218,24 @@ export async function aiTranslateText(apiKey: string, text: string, from: Lang):
   });
   const translated = response.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('').trim();
   return { [from]: text, [to]: translated };
+}
+
+/**
+ * Make a recipe fully bilingual: fills in missing recipe texts and translates
+ * the user's own notes that exist in one language only. Existing texts are kept.
+ */
+export async function aiTranslateRecipe(apiKey: string, recipe: Recipe): Promise<Recipe> {
+  const completed = await aiCompleteRecipe(apiKey, recipe);
+  const notes = await Promise.all(
+    completed.notes.map(async (n) => {
+      if (n.origin !== 'user' || !n.text || (n.text.nl && n.text.en)) return n;
+      const from: Lang = n.text.nl ? 'nl' : 'en';
+      try {
+        return { ...n, text: await aiTranslateText(apiKey, n.text[from]!, from) };
+      } catch {
+        return n;
+      }
+    }),
+  );
+  return { ...completed, notes };
 }

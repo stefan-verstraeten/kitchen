@@ -2,26 +2,19 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { aiCompleteRecipe, aiTranslateText } from '../../import/ai';
+import { aiTranslateRecipe, aiTranslateText } from '../../import/ai';
+import { displayIngredient } from '../../domain/display';
+import { formatDate } from '../../export/recipeHtml';
+import { shareRecipePdf } from '../../export/sharePdf';
 import { resolve, t } from '../../domain/localized';
-import { formatQuantity, quantityFor } from '../../domain/quantity';
 import { addCookedDate, addNote, availableLanguages, cookedDates, removeNote, todayIso, touch } from '../../domain/recipe';
-import type { Ingredient, Lang, Note, Recipe } from '../../domain/types';
-import { unitLabel } from '../../domain/units';
+import type { Note, Recipe } from '../../domain/types';
 import { useApp } from '../../state/AppContext';
 import { Button, Section, ThermomixBadge, ThermomixChip } from '../../ui/components';
 import { colors, ui } from '../../ui/theme';
 
 const MIN_SERVINGS = 1;
 const MAX_SERVINGS = 40;
-
-function ingredientLine(ing: Ingredient, servings: number, base: number, lang: Lang) {
-  const q = quantityFor(ing, servings, base);
-  const amount = q === undefined ? '' : formatQuantity(q, ing.unit, lang);
-  const numeric = q === undefined ? undefined : typeof q === 'number' ? q : q.max;
-  const unit = ing.unit ? unitLabel(ing.unit, lang, numeric) : t(ing.unitText, lang);
-  return { amount: [amount, unit].filter(Boolean).join(' '), name: resolve(ing.name, lang) };
-}
 
 export default function RecipeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,6 +24,7 @@ export default function RecipeScreen() {
   const [noteText, setNoteText] = useState('');
   const [noteDate, setNoteDate] = useState('');
   const [translating, setTranslating] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   if (!recipe) return <View style={ui.screen} />;
 
@@ -46,7 +40,7 @@ export default function RecipeScreen() {
     setTranslating(true);
     try {
       const latest = store.get(recipe.id) ?? recipe;
-      await save(touch(await aiCompleteRecipe(apiKey, latest)));
+      await save(touch(await aiTranslateRecipe(apiKey, latest)));
     } catch (e) {
       Alert.alert(s.error, e instanceof Error ? e.message : String(e));
     } finally {
@@ -75,6 +69,17 @@ export default function RecipeScreen() {
     }
   };
 
+  const sharePdf = async () => {
+    setSharing(true);
+    try {
+      await shareRecipePdf(recipe, { lang, servings, dialogTitle: s.sharePdf });
+    } catch (e) {
+      Alert.alert(s.error, e instanceof Error ? e.message : String(e));
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const confirmDelete = () =>
     Alert.alert(s.deleteRecipe, s.deleteConfirm, [
       { text: s.cancel, style: 'cancel' },
@@ -99,7 +104,25 @@ export default function RecipeScreen() {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-      <Stack.Screen options={{ title: '' }} />
+      <Stack.Screen
+        options={{
+          title: '',
+          headerRight: () => (
+            <View style={[ui.row, { gap: 18 }]}>
+              <Pressable onPress={sharePdf} disabled={sharing} hitSlop={10} accessibilityRole="button" accessibilityLabel={s.sharePdf}>
+                <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '600', opacity: sharing ? 0.5 : 1 }}>{sharing ? s.makingPdf : 'PDF'}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push({ pathname: '/edit/[id]', params: { id: recipe.id } })}
+                hitSlop={10}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '600' }}>{s.edit}</Text>
+              </Pressable>
+            </View>
+          ),
+        }}
+      />
       {recipe.imageUrl && <Image source={{ uri: recipe.imageUrl }} style={{ width: '100%', aspectRatio: 16 / 10, borderRadius: 12 }} />}
 
       <Text style={ui.h1}>{title?.text}</Text>
@@ -137,13 +160,13 @@ export default function RecipeScreen() {
             <View key={gi} style={{ gap: 6, marginTop: gi ? 12 : 0 }}>
               {group.title && <Text style={ui.h3}>{t(group.title, lang)}</Text>}
               {group.items.map((ing, ii) => {
-                const line = ingredientLine(ing, servings, recipe.servings, lang);
+                const line = displayIngredient(ing, servings, recipe.servings, lang);
                 return (
                   <View key={ii} style={{ flexDirection: 'row', gap: 10 }}>
                     <Text style={[ui.body, { width: 96, fontWeight: '600', textAlign: 'right' }]}>{line.amount}</Text>
                     <Text style={[ui.body, { flex: 1 }]}>
                       <Text style={line.name?.isFallback ? { fontStyle: 'italic' } : undefined}>{line.name?.text}</Text>
-                      {ing.note ? <Text style={{ color: colors.muted }}>{`, ${t(ing.note, lang)}`}</Text> : null}
+                      {line.note ? <Text style={{ color: colors.muted }}>{`, ${line.note}`}</Text> : null}
                       {ing.optional ? <Text style={{ color: colors.muted }}>{` (${s.optional})`}</Text> : null}
                     </Text>
                   </View>
@@ -224,14 +247,17 @@ export default function RecipeScreen() {
           <View style={[ui.card, { gap: 6 }]}>
             {recipe.source.author && <Text style={ui.body}>{recipe.source.author}</Text>}
             {recipe.source.siteName && <Text style={ui.muted}>{recipe.source.siteName}</Text>}
-            <Pressable onPress={() => Linking.openURL(recipe.source!.url)}>
-              <Text style={[ui.body, { color: colors.accent, textDecorationLine: 'underline' }]}>{s.openOriginal}</Text>
-            </Pressable>
+            {recipe.source.url ? (
+              <Pressable onPress={() => Linking.openURL(recipe.source!.url)}>
+                <Text style={[ui.body, { color: colors.accent, textDecorationLine: 'underline' }]}>{s.openOriginal}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </Section>
       )}
 
-      <View style={{ marginTop: 24 }}>
+      <View style={{ marginTop: 24, gap: 10 }}>
+        <Button title={sharing ? s.makingPdf : s.sharePdf} kind="secondary" onPress={sharePdf} busy={sharing} />
         <Button title={s.deleteRecipe} kind="danger" onPress={confirmDelete} />
       </View>
     </ScrollView>
@@ -256,9 +282,4 @@ function Stepper({ label, onPress }: { label: string; onPress: () => void }) {
       <Text style={{ fontSize: 20, color: colors.accent, fontWeight: '700' }}>{label}</Text>
     </Pressable>
   );
-}
-
-function formatDate(iso: string, lang: Lang): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(lang === 'nl' ? 'nl-BE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
