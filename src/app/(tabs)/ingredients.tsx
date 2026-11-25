@@ -3,15 +3,15 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 
 import { buildIngredientIndex, searchIngredientIndex } from '../../domain/ingredientIndex';
-import { resolve } from '../../domain/localized';
 import { useApp } from '../../state/AppContext';
+import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
 export default function IngredientIndexScreen() {
-  const { recipes, lang, s } = useApp();
+  const { recipes } = useApp();
   const [query, setQuery] = useState('');
   const index = useMemo(() => buildIngredientIndex(recipes), [recipes]);
-  const results = useMemo(() => searchIngredientIndex(index, query, lang), [index, query, lang]);
+  const results = useMemo(() => searchIngredientIndex(index, query), [index, query]);
 
   return (
     <View style={ui.screen}>
@@ -33,7 +33,6 @@ export default function IngredientIndexScreen() {
         }
         ListEmptyComponent={<Text style={[ui.muted, { textAlign: 'center', marginTop: 32 }]}>{s.noResults}</Text>}
         renderItem={({ item }) => {
-          const name = resolve(item.name, lang);
           return (
             <Link href={{ pathname: '/ingredient/[key]', params: { key: item.key } }} asChild>
               <Pressable
@@ -45,7 +44,7 @@ export default function IngredientIndexScreen() {
                 })}
               >
                 <View style={[ui.row, { justifyContent: 'space-between' }]}>
-                  <Text style={[ui.body, name?.isFallback && { fontStyle: 'italic' }]}>{name?.text}</Text>
+                  <Text style={ui.body}>{item.name}</Text>
                   <Text style={ui.muted}>{s.ingredientUsedIn(item.recipeIds.length)}</Text>
                 </View>
               </Pressable>

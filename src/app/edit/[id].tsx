@@ -2,14 +2,14 @@ import { Stack, router, useLocalSearchParams, usePreventRemove } from 'expo-rout
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
-import { editLocalized, editStep, ingredientsToText, textToIngredients } from '../../domain/editing';
-import { t } from '../../domain/localized';
-import { availableLanguages, emptyRecipe, newId, touch } from '../../domain/recipe';
+import { editStep, ingredientsToText, textToIngredients } from '../../domain/editing';
+import { emptyRecipe, newId, touch } from '../../domain/recipe';
+import { clean } from '../../domain/text';
 import { parseThermomixSettings } from '../../domain/thermomix';
 import type { IngredientGroup, Recipe, Step, StepGroup } from '../../domain/types';
-import { aiTranslateRecipe } from '../../import/ai';
 import { useApp } from '../../state/AppContext';
 import { Button, Section, ThermomixChip } from '../../ui/components';
+import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
 interface IngredientDraft {
@@ -39,12 +39,12 @@ const toMinutes = (v: string) => {
 
 export default function EditRecipeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { store, lang, s, apiKey } = useApp();
+  const { store } = useApp();
   const isNew = id === 'new';
-  const original = useMemo<Recipe>(() => (isNew ? emptyRecipe(lang) : store.get(id)) ?? emptyRecipe(lang), [isNew, id, store, lang]);
+  const original = useMemo<Recipe>(() => (isNew ? emptyRecipe() : store.get(id)) ?? emptyRecipe(), [isNew, id, store]);
 
-  const [title, setTitle] = useState(t(original.title, lang));
-  const [description, setDescription] = useState(t(original.description, lang));
+  const [title, setTitle] = useState(original.title);
+  const [description, setDescription] = useState(original.description ?? '');
   const [thermomix, setThermomix] = useState(original.thermomix);
   const [prep, setPrep] = useState(minutes(original.times?.prepMinutes));
   const [cook, setCook] = useState(minutes(original.times?.cookMinutes));
@@ -56,16 +56,16 @@ export default function EditRecipeScreen() {
   const [ingGroups, setIngGroups] = useState<IngredientDraft[]>(() =>
     (original.ingredientGroups.length ? original.ingredientGroups : [{ items: [] }]).map((g) => ({
       key: k(),
-      title: t(g.title, lang),
-      text: ingredientsToText(g, lang),
+      title: g.title ?? '',
+      text: ingredientsToText(g),
       original: g,
     })),
   );
   const [stepGroups, setStepGroups] = useState<StepGroupDraft[]>(() =>
     (original.stepGroups.length ? original.stepGroups : [{ steps: [] }]).map((g) => ({
       key: k(),
-      title: t(g.title, lang),
-      steps: (g.steps.length ? g.steps : [{ text: {} }]).map((st) => ({ key: k(), text: t(st.text, lang) })),
+      title: g.title ?? '',
+      steps: (g.steps.length ? g.steps : [{ text: '' }]).map((st) => ({ key: k(), text: st.text })),
       original: g,
     })),
   );
@@ -85,20 +85,20 @@ export default function EditRecipeScreen() {
   });
 
   const build = (): Recipe => {
-    // Steps are matched to the originals by their text, so reordering keeps translations.
+    // Steps are matched to the originals by their text, so unchanged steps are kept as they are.
     const originalSteps = new Map<string, Step>();
-    for (const g of original.stepGroups) for (const st of g.steps) originalSteps.set((st.text[lang] ?? '').trim(), st);
+    for (const g of original.stepGroups) for (const st of g.steps) originalSteps.set(st.text.trim(), st);
 
     const ingredientGroups = ingGroups
       .map((g) => ({
-        title: editLocalized(g.original?.title, lang, g.title),
-        items: textToIngredients(g.text, g.original?.items ?? [], lang),
+        title: clean(g.title),
+        items: textToIngredients(g.text, g.original?.items ?? []),
       }))
       .filter((g) => g.items.length || g.title);
     const newStepGroups = stepGroups
       .map((g) => ({
-        title: editLocalized(g.original?.title, lang, g.title),
-        steps: g.steps.map((st) => editStep(originalSteps.get(st.text.trim()), lang, st.text)).filter((st): st is Step => !!st),
+        title: clean(g.title),
+        steps: g.steps.map((st) => editStep(originalSteps.get(st.text.trim()), st.text)).filter((st): st is Step => !!st),
       }))
       .filter((g) => g.steps.length || g.title);
 
@@ -106,9 +106,8 @@ export default function EditRecipeScreen() {
     return touch({
       ...original,
       id: isNew ? newId(title) : original.id,
-      title: editLocalized(original.title, lang, title) ?? {},
-      description: editLocalized(original.description, lang, description),
-      originalLanguage: isNew ? lang : original.originalLanguage,
+      title: title.trim(),
+      description: clean(description),
       thermomix,
       times: { prepMinutes: toMinutes(prep), cookMinutes: toMinutes(cook), totalMinutes: toMinutes(total) },
       imageUrl: image.trim() || undefined,
@@ -131,12 +130,6 @@ export default function EditRecipeScreen() {
     await store.save(recipe);
     disablePrevention();
     setDirty(false);
-    if (apiKey && availableLanguages(recipe).length < 2) {
-      // Translate what changed in the background; existing texts are kept.
-      aiTranslateRecipe(apiKey, store.get(recipe.id) ?? recipe)
-        .then((translated) => store.save(translated))
-        .catch((e) => console.warn('Translation failed', e));
-    }
     if (isNew) router.replace({ pathname: '/recipe/[id]', params: { id: recipe.id } });
     else router.back();
   };
@@ -165,8 +158,6 @@ export default function EditRecipeScreen() {
         }}
       />
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-        {!isNew && <Text style={ui.muted}>{apiKey ? s.editingIn : s.editingInNoKey}</Text>}
-
         <Field label={s.title} value={title} onChange={change(setTitle)} />
         <Field label={s.description} value={description} onChange={change(setDescription)} multiline />
 
@@ -246,7 +237,7 @@ export default function EditRecipeScreen() {
                       }
                     />
                     {tm.map((setting, ti) => (
-                      <ThermomixChip key={ti} setting={setting} lang={lang} />
+                      <ThermomixChip key={ti} setting={setting} />
                     ))}
                   </View>
                 );

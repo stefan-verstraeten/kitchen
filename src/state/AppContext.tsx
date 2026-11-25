@@ -1,21 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocales } from 'expo-localization';
 import { secure } from '../storage/secure';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import type { Lang, Recipe } from '../domain/types';
-import { STRINGS, type Strings } from '../i18n/strings';
+import type { Recipe } from '../domain/types';
 import { DropboxClient } from '../storage/dropbox';
 import { DropboxTokens } from '../storage/dropboxAuth';
 import { RecipeStore } from '../storage/recipeStore';
 
-const LANG_KEY = 'kitchen:lang';
 const API_KEY = 'claude.apiKey';
 
 interface AppState {
-  lang: Lang;
-  setLang(lang: Lang): void;
-  s: Strings;
   recipes: Recipe[];
   store: RecipeStore;
   ready: boolean;
@@ -35,15 +29,10 @@ interface AppState {
 
 const Ctx = createContext<AppState | null>(null);
 
-function deviceLang(): Lang {
-  return getLocales()[0]?.languageCode === 'en' ? 'en' : 'nl';
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [tokens] = useState(() => new DropboxTokens());
   const [store] = useState(() => new RecipeStore(AsyncStorage));
 
-  const [lang, setLangState] = useState<Lang>(deviceLang);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ready, setReady] = useState(false);
   const [apiKey, setApiKeyState] = useState<string>();
@@ -90,8 +79,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const savedLang = await AsyncStorage.getItem(LANG_KEY);
-      if (savedLang === 'nl' || savedLang === 'en') setLangState(savedLang);
       setApiKeyState((await secure.get(API_KEY)) ?? undefined);
       await store.load();
       setReady(true);
@@ -104,12 +91,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppState>(
     () => ({
-      lang,
-      setLang: (l) => {
-        setLangState(l);
-        AsyncStorage.setItem(LANG_KEY, l).catch(() => undefined);
-      },
-      s: STRINGS[lang],
       recipes,
       store,
       ready,
@@ -135,7 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       syncError,
       pending,
     }),
-    [lang, recipes, store, ready, apiKey, tokens, dropboxAccount, dropboxConnected, connect, sync, syncing, lastSync, syncError, pending],
+    [recipes, store, ready, apiKey, tokens, dropboxAccount, dropboxConnected, connect, sync, syncing, lastSync, syncError, pending],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

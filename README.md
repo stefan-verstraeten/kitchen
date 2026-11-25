@@ -1,8 +1,9 @@
-# Kitchen — bilingual recipe database
+# Kitchen — recipe database
 
 A mobile app (iOS + Android, built with Expo / React Native) that imports recipes
 from websites such as Cookidoo and Dagelijkse Kost, stores them in one uniform
-format in your Dropbox, and shows everything in Dutch or English.
+format in your Dropbox. The app is in Dutch. Recipes are kept in the
+language they were imported or typed in, which will normally be Dutch.
 
 ## Features
 
@@ -20,8 +21,7 @@ format in your Dropbox, and shows everything in Dutch or English.
   has sections.
 - **Thermomix**: recipes made with the Vorwerk Thermomix are marked as such.
   Machine settings in a step (time, temperature or Varoma, reverse, speed or
-  mode) are stored as structured data and shown in a fixed format in the
-  chosen language, e.g. `3 min / 100 °C / omgekeerde draairichting / snelheid lepel`.
+  mode) are stored as structured data and shown in a fixed format, e.g. `3 min / 100 °C / omgekeerde draairichting / snelheid lepel`.
 - **Notes**: log the days you cooked a recipe ("Cooked today"), add dated or
   undated notes, and keep tips taken from the source. Long-press a note to
   delete it.
@@ -29,20 +29,14 @@ format in your Dropbox, and shows everything in Dutch or English.
 - **Editor**: tap **Edit** on a recipe, or **Add → Write a recipe yourself**.
   Ingredients are typed one per line, for 4 people (e.g. `200 g bloem, gezeefd`).
   Steps can be added, reordered and removed, and Thermomix settings typed in a
-  step (`5 sec./snelheid 5`) are recognised as you type. You edit the language
-  the app is set to. A text you change loses its other-language version, and
-  the app translates it again automatically if a Claude API key is set.
-  Unchanged texts keep their translation.
-- **Share as PDF**: the **PDF** button on a recipe creates a PDF in the current
-  language, for the number of people currently selected, and opens the share
+  step (`5 sec./snelheid 5`) are recognised as you type.
+- **Share as PDF**: the **PDF** button on a recipe creates a PDF for the
+  number of people currently selected, and opens the share
   sheet, so you can send it to WhatsApp, Mail or Messages, or save it to Files.
 - **Ingredient index**: a searchable list of every ingredient across all your
-  recipes. Search works in both languages ("ui", "ajuin" or "onion" all find
-  the same entry), and tapping an ingredient lists the recipes that use it.
-- **Dutch / English**: the interface, the recipes and the ingredient index can
-  all be switched between Dutch and English. Recipes are translated when they
-  are imported, if a Claude API key is set. A recipe that isn't translated yet
-  is shown in its original language, with a "Translate" button.
+  recipes. Different spellings of common ingredients are grouped ("ui",
+  "uien" and "ajuin" are one entry), and tapping an ingredient lists the
+  recipes that use it.
 
 ## Getting started
 
@@ -69,17 +63,14 @@ development client instead of using Expo Go:
 
 Then open **Settings** in the app → **Connect Dropbox**.
 
-### 2. Claude API key (optional, recommended)
+### 2. Claude API key (optional)
 
-Under **Settings → Claude API key**, enter a key from
-<https://platform.claude.com>. It is stored in the iOS Keychain / Android
-Keystore and used for:
-
-- translating imported recipes, notes and ingredient names (NL ↔ EN);
-- reading recipes from pages without structured data, and from pasted text.
-
-Without a key, recipes from sites with schema.org data are still imported, in
-their original language only.
+Pages with schema.org recipe data are read on the phone without any key. For
+pages without that data, and for recipe text you paste in (e.g. from the
+Cookidoo app), the app asks Claude to structure the recipe. For that, enter a
+key from <https://platform.claude.com> under **Instellingen → Claude
+API-sleutel**. It is stored in the iOS Keychain / Android Keystore. Nothing is
+translated: the recipe stays in the language of the source.
 
 ## Data format
 
@@ -87,32 +78,31 @@ their original language only.
 
 ```jsonc
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "tomatensoep-met-balletjes-ymohfg",
-  "title": { "nl": "Tomatensoep met balletjes", "en": "Tomato soup with meatballs" },
-  "originalLanguage": "nl",
+  "title": "Tomatensoep met balletjes",
   "servings": 4,                 // quantities below are for 4 people
   "originalServings": 4,
   "thermomix": true,
   "ingredientGroups": [{ "items": [
-    { "key": "onion", "name": { "nl": "ui", "en": "onion" }, "quantity": 1, "note": { "nl": "gehalveerd", "en": "halved" } },
-    { "key": "canned-tomatoes", "name": { "nl": "tomatenblokjes", "en": "chopped tomatoes" }, "quantity": 800, "unit": "g" }
+    { "key": "onion", "name": "ui", "quantity": 1, "note": "gehalveerd" },
+    { "key": "canned-tomatoes", "name": "tomatenblokjes", "quantity": 800, "unit": "g" }
   ]}],
   "stepGroups": [{ "steps": [
-    { "text": { "nl": "… 5 sec./snelheid 5 fijnhakken.", "en": "… chop 5 sec/speed 5." },
+    { "text": "Ui in de mengkom doen en 5 sec./snelheid 5 fijnhakken.",
       "thermomix": [{ "timeSeconds": 5, "speed": 5, "raw": "5 sec./snelheid 5" }] }
   ]}],
   "notes": [
     { "id": "n-…", "kind": "cooked", "date": "2026-11-16", "origin": "user" },
-    { "id": "n-…", "kind": "tip", "text": { "nl": "…", "en": "…" }, "origin": "source" }
+    { "id": "n-…", "kind": "tip", "text": "…", "origin": "source" }
   ],
   "source": { "url": "https://cookidoo.be/…", "siteName": "Cookidoo", "author": "Vorwerk Thermomix", "importedAt": "…" }
 }
 ```
 
-`Apps/Kitchen/ingredients.json` stores Dutch/English names for ingredients
-that aren't in the built-in list (`src/domain/ingredientCatalog.ts`), so the
-index shows the same names on every device.
+Files in the earlier two-language format (`schemaVersion: 1`) are converted
+automatically when the app reads them (Dutch text kept, English used only
+where there was no Dutch) and written back in the current format.
 
 ## Project layout
 
@@ -120,10 +110,10 @@ index shows the same names on every device.
 src/
   app/        screens (Expo Router): recipe list, ingredient index, import, settings, recipe page
   domain/     recipe model, quantity scaling, units, Thermomix parser, ingredient catalog & index
-  import/     HTML / JSON-LD parsing, site profiles, Claude extraction & translation
+  import/     HTML / JSON-LD parsing, site profiles, Claude extraction
   storage/    Dropbox API client, OAuth (PKCE), offline-first sync
+  ui/         shared components, theme and all interface text (strings.ts)
   export/     printable HTML and PDF sharing
-  i18n/       UI text (nl/en)
 tests/        vitest unit tests (parsing, scaling, index, sync/merge)
 ```
 

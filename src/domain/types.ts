@@ -1,19 +1,14 @@
 /**
  * Uniform recipe format. One JSON file per recipe is stored in Dropbox
- * (see src/storage). Every human-readable text is a `Localized` value so the
- * whole recipe can be shown in Dutch or English.
+ * (see src/storage). Recipes are kept in a single language (normally Dutch),
+ * exactly as imported or typed.
  */
-
-export const LANGUAGES = ['nl', 'en'] as const;
-export type Lang = (typeof LANGUAGES)[number];
-
-/** Text in one or both app languages. At least one should be present. */
-export type Localized = Partial<Record<Lang, string>>;
 
 /** All recipes are stored normalized to this many servings. */
 export const BASE_SERVINGS = 4;
 
-export const SCHEMA_VERSION = 1;
+/** 2 = single-language texts (version 1 stored Dutch/English pairs). */
+export const SCHEMA_VERSION = 2;
 
 /**
  * Canonical units. Display names live in src/i18n/units.ts.
@@ -50,15 +45,15 @@ export type Unit = (typeof UNITS)[number];
 export type Quantity = number | { min: number; max: number };
 
 export interface Ingredient {
-  /** Canonical ingredient key used by the ingredient index, e.g. "onion". */
+  /** Catalog key that groups spellings in the ingredient index, e.g. "onion" for ui/ajuin/uien. */
   key?: string;
-  name: Localized;
+  name: string;
   quantity?: Quantity;
   unit?: Unit;
   /** Free-text unit when no canonical unit fits (e.g. "bolletje"). */
-  unitText?: Localized;
-  /** Preparation hint, e.g. "finely chopped" / "fijngesnipperd". */
-  note?: Localized;
+  unitText?: string;
+  /** Preparation hint, e.g. "fijngesnipperd". */
+  note?: string;
   optional?: boolean;
   /** False for amounts that should not scale with servings ("salt to taste"). */
   scalable?: boolean;
@@ -67,7 +62,7 @@ export interface Ingredient {
 }
 
 export interface IngredientGroup {
-  title?: Localized;
+  title?: string;
   items: Ingredient[];
 }
 
@@ -103,13 +98,13 @@ export interface ThermomixSetting {
 }
 
 export interface Step {
-  text: Localized;
+  text: string;
   /** One or more machine settings mentioned in this step. */
   thermomix?: ThermomixSetting[];
 }
 
 export interface StepGroup {
-  title?: Localized;
+  title?: string;
   steps: Step[];
 }
 
@@ -120,7 +115,7 @@ export interface Note {
   kind: NoteKind;
   /** ISO date (YYYY-MM-DD). Required for 'cooked', optional otherwise. */
   date?: string;
-  text?: Localized;
+  text?: string;
   /** 'source' = retained from the original recipe page, 'user' = written in the app. */
   origin: 'user' | 'source';
 }
@@ -137,10 +132,8 @@ export interface RecipeSource {
 export interface Recipe {
   schemaVersion: typeof SCHEMA_VERSION;
   id: string;
-  title: Localized;
-  description?: Localized;
-  /** Language the recipe was written in at the source. */
-  originalLanguage: Lang;
+  title: string;
+  description?: string;
   /** Always BASE_SERVINGS; quantities are stored for this many people. */
   servings: typeof BASE_SERVINGS;
   /** Servings as stated by the source, before normalization. */
@@ -151,7 +144,7 @@ export interface Recipe {
   thermomixModel?: string;
   times?: { prepMinutes?: number; cookMinutes?: number; totalMinutes?: number };
   imageUrl?: string;
-  tags?: Localized[];
+  tags?: string[];
   ingredientGroups: IngredientGroup[];
   stepGroups: StepGroup[];
   notes: Note[];

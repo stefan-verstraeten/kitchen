@@ -2,15 +2,14 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { aiTranslateRecipe, aiTranslateText } from '../../import/ai';
 import { displayIngredient } from '../../domain/display';
 import { formatDate } from '../../export/recipeHtml';
 import { shareRecipePdf } from '../../export/sharePdf';
-import { resolve, t } from '../../domain/localized';
-import { addCookedDate, addNote, availableLanguages, cookedDates, removeNote, todayIso, touch } from '../../domain/recipe';
+import { addCookedDate, addNote, cookedDates, removeNote, todayIso } from '../../domain/recipe';
 import type { Note, Recipe } from '../../domain/types';
 import { useApp } from '../../state/AppContext';
 import { Button, Section, ThermomixBadge, ThermomixChip } from '../../ui/components';
+import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
 const MIN_SERVINGS = 1;
@@ -18,61 +17,34 @@ const MAX_SERVINGS = 40;
 
 export default function RecipeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { store, recipes, lang, s, apiKey } = useApp();
+  const { store, recipes } = useApp();
   const recipe = recipes.find((r) => r.id === id);
   const [servings, setServings] = useState<number>(recipe?.servings ?? 4);
   const [noteText, setNoteText] = useState('');
   const [noteDate, setNoteDate] = useState('');
-  const [translating, setTranslating] = useState(false);
   const [sharing, setSharing] = useState(false);
 
   if (!recipe) return <View style={ui.screen} />;
 
   const save = (r: Recipe) => store.save(r);
-  const complete = availableLanguages(recipe).includes(lang);
-  const title = resolve(recipe.title, lang);
   const cooked = cookedDates(recipe);
   const otherNotes = recipe.notes.filter((n) => n.kind !== 'cooked');
   const times = recipe.times ?? {};
-
-  const translate = async () => {
-    if (!apiKey) return Alert.alert(s.translate, s.needsApiKey);
-    setTranslating(true);
-    try {
-      const latest = store.get(recipe.id) ?? recipe;
-      await save(touch(await aiTranslateRecipe(apiKey, latest)));
-    } catch (e) {
-      Alert.alert(s.error, e instanceof Error ? e.message : String(e));
-    } finally {
-      setTranslating(false);
-    }
-  };
 
   const submitNote = async () => {
     const text = noteText.trim();
     if (!text) return;
     const date = /^\d{4}-\d{2}-\d{2}$/.test(noteDate.trim()) ? noteDate.trim() : undefined;
-    const updated = addNote(recipe, { [lang]: text }, { date });
+    const updated = addNote(recipe, text, { date });
     setNoteText('');
     setNoteDate('');
     await save(updated);
-    if (apiKey) {
-      // Fill in the other language in the background.
-      const noteId = updated.notes[updated.notes.length - 1].id;
-      aiTranslateText(apiKey, text, lang)
-        .then((both) => {
-          const latest = store.get(recipe.id);
-          if (!latest) return;
-          return save(touch({ ...latest, notes: latest.notes.map((n) => (n.id === noteId ? { ...n, text: both } : n)) }));
-        })
-        .catch(() => undefined);
-    }
   };
 
   const sharePdf = async () => {
     setSharing(true);
     try {
-      await shareRecipePdf(recipe, { lang, servings, dialogTitle: s.sharePdf });
+      await shareRecipePdf(recipe, { servings, dialogTitle: s.sharePdf });
     } catch (e) {
       Alert.alert(s.error, e instanceof Error ? e.message : String(e));
     } finally {
@@ -125,7 +97,7 @@ export default function RecipeScreen() {
       />
       {recipe.imageUrl && <Image source={{ uri: recipe.imageUrl }} style={{ width: '100%', aspectRatio: 16 / 10, borderRadius: 12 }} />}
 
-      <Text style={ui.h1}>{title?.text}</Text>
+      <Text style={ui.h1}>{recipe.title}</Text>
       {(recipe.source?.author || recipe.source?.siteName) && (
         <Text style={ui.muted}>{[recipe.source?.author, recipe.source?.siteName].filter(Boolean).join(' · ')}</Text>
       )}
@@ -136,14 +108,7 @@ export default function RecipeScreen() {
         {times.totalMinutes ? <Text style={ui.muted}>{`${s.total}: ${s.minutes(times.totalMinutes)}`}</Text> : null}
       </View>
 
-      {!complete && (
-        <View style={[ui.card, { backgroundColor: colors.accentSoft, gap: 8 }]}>
-          <Text style={ui.body}>{lang === 'nl' ? s.notTranslated : s.notTranslatedOther}</Text>
-          {apiKey ? <Button title={translating ? s.translating : s.translate} onPress={translate} busy={translating} /> : <Text style={ui.muted}>{s.needsApiKey}</Text>}
-        </View>
-      )}
-
-      {recipe.description && <Text style={ui.body}>{t(recipe.description, lang)}</Text>}
+      {recipe.description && <Text style={ui.body}>{recipe.description}</Text>}
 
       <Section
         title={s.ingredients}
@@ -158,14 +123,14 @@ export default function RecipeScreen() {
         <View style={ui.card}>
           {recipe.ingredientGroups.map((group, gi) => (
             <View key={gi} style={{ gap: 6, marginTop: gi ? 12 : 0 }}>
-              {group.title && <Text style={ui.h3}>{t(group.title, lang)}</Text>}
+              {group.title && <Text style={ui.h3}>{group.title}</Text>}
               {group.items.map((ing, ii) => {
-                const line = displayIngredient(ing, servings, recipe.servings, lang);
+                const line = displayIngredient(ing, servings, recipe.servings);
                 return (
                   <View key={ii} style={{ flexDirection: 'row', gap: 10 }}>
                     <Text style={[ui.body, { width: 96, fontWeight: '600', textAlign: 'right' }]}>{line.amount}</Text>
                     <Text style={[ui.body, { flex: 1 }]}>
-                      <Text style={line.name?.isFallback ? { fontStyle: 'italic' } : undefined}>{line.name?.text}</Text>
+                      {line.name}
                       {line.note ? <Text style={{ color: colors.muted }}>{`, ${line.note}`}</Text> : null}
                       {ing.optional ? <Text style={{ color: colors.muted }}>{` (${s.optional})`}</Text> : null}
                     </Text>
@@ -183,15 +148,14 @@ export default function RecipeScreen() {
       <Section title={s.preparation}>
         {recipe.stepGroups.map((group, gi) => (
           <View key={gi} style={{ gap: 10 }}>
-            {group.title && <Text style={ui.h3}>{t(group.title, lang)}</Text>}
+            {group.title && <Text style={ui.h3}>{group.title}</Text>}
             {group.steps.map((step, si) => {
               const stepNumber = stepOffsets[gi] + si + 1;
-              const text = resolve(step.text, lang);
               return (
                 <View key={si} style={[ui.card, { gap: 8 }]}>
                   <Text style={[ui.muted, { fontWeight: '600' }]}>{s.step(stepNumber)}</Text>
-                  <Text style={[ui.body, text?.isFallback && { fontStyle: 'italic' }]}>{text?.text}</Text>
-                  {step.thermomix?.map((tm, ti) => <ThermomixChip key={ti} setting={tm} lang={lang} />)}
+                  <Text style={ui.body}>{step.text}</Text>
+                  {step.thermomix?.map((tm, ti) => <ThermomixChip key={ti} setting={tm} />)}
                 </View>
               );
             })}
@@ -205,18 +169,17 @@ export default function RecipeScreen() {
             <Text style={ui.h3}>{cooked.length ? s.timesCooked(cooked.length) : s.cookedOn}</Text>
             <Button title={s.cookedToday} kind="secondary" onPress={() => save(addCookedDate(recipe))} disabled={cooked.includes(todayIso())} />
           </View>
-          {cooked.length > 0 && <Text style={ui.muted}>{cooked.map((d) => formatDate(d, lang)).join(' · ')}</Text>}
+          {cooked.length > 0 && <Text style={ui.muted}>{cooked.map((d) => formatDate(d)).join(' · ')}</Text>}
         </View>
 
         {otherNotes.length === 0 && <Text style={ui.muted}>{s.noNotes}</Text>}
         {otherNotes.map((note) => {
-          const text = resolve(note.text, lang);
           return (
             <Pressable key={note.id} onLongPress={() => confirmRemoveNote(note)} style={[ui.card, { gap: 4 }]}>
               {(note.origin === 'source' || note.date) && (
-                <Text style={ui.muted}>{[note.origin === 'source' ? s.tip : undefined, note.date ? formatDate(note.date, lang) : undefined].filter(Boolean).join(' · ')}</Text>
+                <Text style={ui.muted}>{[note.origin === 'source' ? s.tip : undefined, note.date ? formatDate(note.date) : undefined].filter(Boolean).join(' · ')}</Text>
               )}
-              <Text style={[ui.body, text?.isFallback && { fontStyle: 'italic' }]}>{text?.text}</Text>
+              <Text style={ui.body}>{note.text}</Text>
             </Pressable>
           );
         })}

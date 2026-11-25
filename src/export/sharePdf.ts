@@ -3,7 +3,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
-import { slugify, t } from '../domain/localized';
+import { slugify } from '../domain/text';
 import type { Recipe } from '../domain/types';
 import { recipeToHtml, type PdfOptions } from './recipeHtml';
 
@@ -19,7 +19,7 @@ export async function shareRecipePdf(recipe: Recipe, options: PdfOptions & { dia
   }
   const { uri } = await Print.printToFileAsync({ html });
   // Give the file a readable name; it is what the recipient sees in WhatsApp.
-  const name = `${slugify(t(recipe.title, options.lang)) || 'recept'}.pdf`;
+  const name = `${slugify(recipe.title) || 'recept'}.pdf`;
   const target = new File(Paths.cache, name);
   if (target.exists) target.delete();
   await new File(uri).move(target);

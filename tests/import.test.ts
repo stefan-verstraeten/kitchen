@@ -35,7 +35,7 @@ describe('JSON-LD import', () => {
     expect(r.ingredientGroups[0].items[1]).toMatchObject({ quantity: 2, key: 'onion' });
     expect(r.source).toMatchObject({ siteName: 'Dagelijkse Kost', author: 'Jeroen Meus' });
     expect(r.thermomix).toBe(false);
-    expect(r.notes[0]).toMatchObject({ kind: 'tip', origin: 'source', text: { nl: 'Nog lekkerder de dag nadien.' } });
+    expect(r.notes[0]).toMatchObject({ kind: 'tip', origin: 'source', text: 'Nog lekkerder de dag nadien.' });
   });
 
   it('flags Cookidoo recipes as Thermomix and extracts settings', async () => {
@@ -55,7 +55,6 @@ describe('JSON-LD import', () => {
     );
     const r = await importFromHtml('https://cookidoo.international/recipes/recipe/en/r123', html);
     expect(r.thermomix).toBe(true);
-    expect(r.originalLanguage).toBe('en');
     expect(r.stepGroups[0].steps[1].thermomix).toEqual([{ raw: '20 min/100°C/speed 1', timeSeconds: 1200, temperature: 100, speed: 1 }]);
     expect(r.source).toMatchObject({ siteName: 'Cookidoo', author: 'Vorwerk Thermomix' });
   });

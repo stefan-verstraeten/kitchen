@@ -1,5 +1,5 @@
-import { catalogEntry, registerCatalogEntries, type CatalogEntry } from '../domain/ingredientCatalog';
-import { isRecipe, mergeRecipes } from '../domain/recipe';
+import { mergeRecipes, upgradeRecipe } from '../domain/recipe';
+import { SCHEMA_VERSION } from '../domain/types';
 import type { Recipe } from '../domain/types';
 import { DropboxClient, DropboxError } from './dropbox';
 
@@ -11,7 +11,6 @@ export interface KeyValueStore {
 }
 
 export const RECIPES_FOLDER = '/recipes';
-export const CATALOG_PATH = '/ingredients.json';
 
 interface Meta {
   /** Dropbox revision the local copy is based on. */
@@ -69,16 +68,22 @@ export class RecipeStore {
   async load(): Promise<void> {
     const raw = await this.kv.getItem(STATE_KEY);
     if (raw) this.state = { ...{ meta: {}, deleted: [] }, ...(JSON.parse(raw) as Partial<State>) };
-    const catalog = await this.kv.getItem('kitchen:catalog');
-    if (catalog) registerCatalogEntries(JSON.parse(catalog) as CatalogEntry[]);
     await Promise.all(
       Object.keys(this.state.meta).map(async (id) => {
         const json = await this.kv.getItem(recipeKey(id));
         if (!json) return;
-        const r: unknown = JSON.parse(json);
-        if (isRecipe(r)) this.recipes.set(id, r);
+        const stored: unknown = JSON.parse(json);
+        const r = upgradeRecipe(stored);
+        if (!r) return;
+        this.recipes.set(id, r);
+        if ((stored as { schemaVersion?: number }).schemaVersion !== SCHEMA_VERSION) {
+          // Upgrade the cached copy and re-upload it in the current format.
+          this.state.meta[id] = { ...this.state.meta[id], dirty: true };
+          await this.kv.setItem(recipeKey(id), JSON.stringify(r));
+        }
       }),
     );
+    await this.persistState();
     this.emit();
   }
 
@@ -109,7 +114,6 @@ export class RecipeStore {
   async save(recipe: Recipe): Promise<void> {
     const meta = this.state.meta[recipe.id] ?? {};
     await this.putLocal(recipe, { ...meta, dirty: true });
-    await this.addCatalogEntries(newCatalogEntries(recipe));
     this.emit();
     if (this.dropbox) {
       try {
@@ -149,8 +153,8 @@ export class RecipeStore {
           meta = {};
           continue;
         }
-        const parsed: unknown = JSON.parse(remote.text);
-        recipe = isRecipe(parsed) ? mergeRecipes(recipe, parsed) : recipe;
+        const parsed = upgradeRecipe(JSON.parse(remote.text));
+        recipe = parsed ? mergeRecipes(recipe, parsed) : recipe;
         meta = { rev: remote.rev, dirty: true };
         merged = true;
       }
@@ -182,9 +186,12 @@ export class RecipeStore {
       if (meta?.dirty) continue; // handled by upload (conflict -> merge)
       const remote = await dropbox.download(file.path);
       if (!remote) continue;
-      const parsed: unknown = JSON.parse(remote.text);
-      if (!isRecipe(parsed)) continue;
-      await this.putLocal({ ...parsed, id }, { rev: remote.rev, dirty: false });
+      const raw: unknown = JSON.parse(remote.text);
+      const parsed = upgradeRecipe(raw);
+      if (!parsed) continue;
+      // Files in an older format are rewritten in the current one.
+      const outdated = (raw as { schemaVersion?: number }).schemaVersion !== SCHEMA_VERSION;
+      await this.putLocal({ ...parsed, id }, { rev: remote.rev, dirty: outdated });
       result.downloaded++;
     }
 
@@ -207,49 +214,7 @@ export class RecipeStore {
       if (outcome === 'merged') result.conflictsMerged++;
     }
 
-    await this.syncCatalog();
     this.emit();
     return result;
   }
-
-  /** Extra bilingual ingredient names (from imports) are shared via /ingredients.json. */
-  private async syncCatalog() {
-    const dropbox = this.dropbox!;
-    const localRaw = await this.kv.getItem('kitchen:catalog');
-    const local = localRaw ? (JSON.parse(localRaw) as CatalogEntry[]) : [];
-    const remote = await dropbox.download(CATALOG_PATH);
-    const remoteEntries = remote ? (JSON.parse(remote.text) as CatalogEntry[]) : [];
-    const byKey = new Map<string, CatalogEntry>();
-    for (const e of [...remoteEntries, ...local]) byKey.set(e.key, e);
-    const merged = [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
-    registerCatalogEntries(merged);
-    await this.kv.setItem('kitchen:catalog', JSON.stringify(merged));
-    if (merged.length !== remoteEntries.length) {
-      await dropbox.upload(CATALOG_PATH, JSON.stringify(merged, null, 2), { overwrite: true }).catch(() => undefined);
-    }
-  }
-
-  /** Remember catalog entries learned locally (e.g. from an AI import). */
-  async addCatalogEntries(entries: CatalogEntry[]) {
-    if (!entries.length) return;
-    const raw = await this.kv.getItem('kitchen:catalog');
-    const current = raw ? (JSON.parse(raw) as CatalogEntry[]) : [];
-    const byKey = new Map(current.map((e) => [e.key, e]));
-    for (const e of entries) byKey.set(e.key, e);
-    await this.kv.setItem('kitchen:catalog', JSON.stringify([...byKey.values()]));
-    registerCatalogEntries(entries);
-  }
-}
-
-/** Bilingual ingredient names in a recipe whose key the catalog does not know yet. */
-export function newCatalogEntries(recipe: Recipe): CatalogEntry[] {
-  const out = new Map<string, CatalogEntry>();
-  for (const g of recipe.ingredientGroups) {
-    for (const i of g.items) {
-      if (i.key && i.name.nl && i.name.en && !catalogEntry(i.key)) {
-        out.set(i.key, { key: i.key, name: { nl: i.name.nl, en: i.name.en } });
-      }
-    }
-  }
-  return [...out.values()];
 }

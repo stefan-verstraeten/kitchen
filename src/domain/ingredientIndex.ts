@@ -1,17 +1,16 @@
 import { catalogEntry } from './ingredientCatalog';
-import { fold, t } from './localized';
-import type { Lang, Localized, Recipe } from './types';
+import { fold } from './text';
+import type { Recipe } from './types';
 
 export interface IndexEntry {
   /** Catalog key, or "name:<folded name>" for ingredients not in the catalog. */
   key: string;
-  name: Localized;
+  name: string;
   recipeIds: string[];
 }
 
-export function indexKeyFor(ing: { key?: string; name: Localized }): string {
-  if (ing.key) return ing.key;
-  return `name:${fold(ing.name.en ?? ing.name.nl ?? '')}`;
+export function indexKeyFor(ing: { key?: string; name: string }): string {
+  return ing.key ?? `name:${fold(ing.name)}`;
 }
 
 /** Build the ingredient index (ingredient -> recipes) from all recipes. */
@@ -24,12 +23,8 @@ export function buildIngredientIndex(recipes: Recipe[]): IndexEntry[] {
         if (key === 'name:') continue;
         let entry = map.get(key);
         if (!entry) {
-          const cat = ing.key ? catalogEntry(ing.key) : undefined;
-          entry = { key, name: cat ? { ...cat.name } : { ...ing.name }, recipeIds: [] };
+          entry = { key, name: (ing.key && catalogEntry(ing.key)?.name) || ing.name, recipeIds: [] };
           map.set(key, entry);
-        } else if (!ing.key) {
-          // Fill in a missing translation from another recipe.
-          entry.name = { ...ing.name, ...entry.name };
         }
         if (!entry.recipeIds.includes(recipe.id)) entry.recipeIds.push(recipe.id);
       }
@@ -48,30 +43,26 @@ function matchesQuery(foldedName: string, q: string): boolean {
 }
 
 /**
- * Search the index in either language (accent/case-insensitive), so a Dutch
- * user typing "ui" and an English user typing "onion" find the same entry.
- * Results are sorted by display name in `lang`.
+ * Search the index (accent/case-insensitive). Catalog synonyms count too, so
+ * "ajuin" finds the entry "ui". Results are sorted alphabetically, with names
+ * starting with the query first.
  */
-export function searchIngredientIndex(index: IndexEntry[], query: string, lang: Lang): IndexEntry[] {
+export function searchIngredientIndex(index: IndexEntry[], query: string): IndexEntry[] {
   const q = fold(query);
   const matches = q
-    ? index.filter((e) => {
-        const names = [e.name.nl, e.name.en, ...(catalogEntry(e.key)?.synonyms ?? [])];
-        return names.some((n) => n && matchesQuery(fold(n), q));
-      })
+    ? index.filter((e) => [e.name, ...(catalogEntry(e.key)?.synonyms ?? [])].some((n) => matchesQuery(fold(n), q)))
     : index;
   return [...matches].sort((a, b) => {
     if (q) {
-      // Prefix matches first.
-      const ap = fold(t(a.name, lang)).startsWith(q) ? 0 : 1;
-      const bp = fold(t(b.name, lang)).startsWith(q) ? 0 : 1;
+      const ap = fold(a.name).startsWith(q) ? 0 : 1;
+      const bp = fold(b.name).startsWith(q) ? 0 : 1;
       if (ap !== bp) return ap - bp;
     }
-    return t(a.name, lang).localeCompare(t(b.name, lang), lang);
+    return a.name.localeCompare(b.name, 'nl');
   });
 }
 
-/** Free-text recipe search over titles and ingredient names in both languages. */
+/** Free-text recipe search over titles, cooks, sites, ingredients and tags. */
 export function searchRecipes(recipes: Recipe[], query: string): Recipe[] {
   const q = fold(query);
   if (!q) return recipes;
@@ -79,12 +70,11 @@ export function searchRecipes(recipes: Recipe[], query: string): Recipe[] {
   return recipes.filter((r) => {
     const hay = fold(
       [
-        r.title.nl,
-        r.title.en,
+        r.title,
         r.source?.author,
         r.source?.siteName,
-        ...r.ingredientGroups.flatMap((g) => g.items.flatMap((i) => [i.name.nl, i.name.en])),
-        ...(r.tags ?? []).flatMap((tag) => [tag.nl, tag.en]),
+        ...r.ingredientGroups.flatMap((g) => g.items.map((i) => i.name)),
+        ...(r.tags ?? []),
       ]
         .filter(Boolean)
         .join(' '),

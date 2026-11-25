@@ -6,7 +6,6 @@ import {
   BASE_SERVINGS,
   SCHEMA_VERSION,
   type IngredientGroup,
-  type Lang,
   type Note,
   type Recipe,
   type StepGroup,
@@ -75,8 +74,8 @@ export function instructionGroups(v: unknown): RawStepGroup[] {
   return groups.filter((g) => g.steps.length > 0);
 }
 
-/** Convert a schema.org Recipe object into our uniform format (single language). */
-export function recipeFromJsonLd(ld: Json, url: string, lang: Lang, profile: SiteProfile): Recipe {
+/** Convert a schema.org Recipe object into our uniform format. */
+export function recipeFromJsonLd(ld: Json, url: string, profile: SiteProfile): Recipe {
   const now = new Date().toISOString();
   const title = str(ld.name) ?? '';
   const originalServings = parseServings(ld.recipeYield);
@@ -89,7 +88,7 @@ export function recipeFromJsonLd(ld: Json, url: string, lang: Lang, profile: Sit
   const ingredientGroups: IngredientGroup[] = [
     {
       items: ingredientLines.map((line) => {
-        const ing = parseIngredientLine(line, lang);
+        const ing = parseIngredientLine(line);
         if (ing.quantity !== undefined && ing.scalable !== false) {
           ing.quantity = normalizeQuantity(ing.quantity, from, BASE_SERVINGS);
         }
@@ -100,10 +99,10 @@ export function recipeFromJsonLd(ld: Json, url: string, lang: Lang, profile: Sit
 
   const rawGroups = instructionGroups(ld.recipeInstructions);
   const stepGroups: StepGroup[] = rawGroups.map((g) => ({
-    title: g.title ? { [lang]: g.title } : undefined,
+    title: g.title,
     steps: g.steps.map((text) => {
       const tm = parseThermomixSettings(text);
-      return tm.length ? { text: { [lang]: text }, thermomix: tm } : { text: { [lang]: text } };
+      return tm.length ? { text, thermomix: tm } : { text };
     }),
   }));
 
@@ -112,7 +111,7 @@ export function recipeFromJsonLd(ld: Json, url: string, lang: Lang, profile: Sit
 
   const notes: Note[] = [];
   const tipSources = [ld.tip, ld.tips, ld.recipeNotes, ld.notes].flat().map(str).filter((s): s is string => !!s);
-  for (const tip of tipSources) notes.push({ id: noteId(), kind: 'tip', text: { [lang]: tip }, origin: 'source' });
+  for (const tip of tipSources) notes.push({ id: noteId(), kind: 'tip', text: tip, origin: 'source' });
 
   const keywords = typeof ld.keywords === 'string' ? ld.keywords.split(',') : Array.isArray(ld.keywords) ? ld.keywords : [];
   const tags = [ld.recipeCategory, ld.recipeCuisine, keywords]
@@ -120,14 +119,13 @@ export function recipeFromJsonLd(ld: Json, url: string, lang: Lang, profile: Sit
     .map(str)
     .filter((s): s is string => !!s)
     .slice(0, 12)
-    .map((s) => ({ [lang]: s.trim() }));
+    .map((s) => s.trim());
 
   return {
     schemaVersion: SCHEMA_VERSION,
     id: newId(title),
-    title: { [lang]: title },
-    description: str(ld.description) ? { [lang]: str(ld.description)! } : undefined,
-    originalLanguage: lang,
+    title,
+    description: str(ld.description),
     servings: BASE_SERVINGS,
     originalServings,
     thermomix: usesThermomix,

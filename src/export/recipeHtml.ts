@@ -1,29 +1,26 @@
 import { displayIngredient } from '../domain/display';
-import { t } from '../domain/localized';
 import { cookedDates } from '../domain/recipe';
 import { formatThermomixSetting } from '../domain/thermomix';
-import type { Lang, Recipe } from '../domain/types';
-import { STRINGS } from '../i18n/strings';
+import type { Recipe } from '../domain/types';
+import { s } from '../ui/strings';
 
 function esc(s: string | undefined): string {
   return (s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-export function formatDate(iso: string, lang: Lang): string {
+export function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(lang === 'nl' ? 'nl-BE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export interface PdfOptions {
-  lang: Lang;
   servings: number;
   /** Include cooked dates and personal notes (tips from the source are always included). */
   includeNotes?: boolean;
 }
 
 /** Printable HTML for a recipe, used to produce the PDF. */
-export function recipeToHtml(recipe: Recipe, { lang, servings, includeNotes = true }: PdfOptions): string {
-  const s = STRINGS[lang];
+export function recipeToHtml(recipe: Recipe, { servings, includeNotes = true }: PdfOptions): string {
   const times = recipe.times ?? {};
   const meta = [
     times.prepMinutes ? `${s.prep}: ${s.minutes(times.prepMinutes)}` : '',
@@ -36,12 +33,12 @@ export function recipeToHtml(recipe: Recipe, { lang, servings, includeNotes = tr
     .map((g) => {
       const rows = g.items
         .map((ing) => {
-          const d = displayIngredient(ing, servings, recipe.servings, lang);
+          const d = displayIngredient(ing, servings, recipe.servings);
           const extra = [d.note, ing.optional ? s.optional : ''].filter(Boolean).join(', ');
-          return `<tr><td class="amt">${esc(d.amount)}</td><td>${esc(d.name?.text)}${extra ? ` <span class="muted">(${esc(extra)})</span>` : ''}</td></tr>`;
+          return `<tr><td class="amt">${esc(d.amount)}</td><td>${esc(d.name)}${extra ? ` <span class="muted">(${esc(extra)})</span>` : ''}</td></tr>`;
         })
         .join('');
-      return `${g.title ? `<h3>${esc(t(g.title, lang))}</h3>` : ''}<table class="ing">${rows}</table>`;
+      return `${g.title ? `<h3>${esc(g.title)}</h3>` : ''}<table class="ing">${rows}</table>`;
     })
     .join('');
 
@@ -51,22 +48,22 @@ export function recipeToHtml(recipe: Recipe, { lang, servings, includeNotes = tr
       const items = g.steps
         .map((step) => {
           n += 1;
-          const tm = (step.thermomix ?? []).map((x) => `<div class="tm">${esc(formatThermomixSetting(x, lang))}</div>`).join('');
-          return `<li value="${n}"><p>${esc(t(step.text, lang))}</p>${tm}</li>`;
+          const tm = (step.thermomix ?? []).map((x) => `<div class="tm">${esc(formatThermomixSetting(x))}</div>`).join('');
+          return `<li value="${n}"><p>${esc(step.text)}</p>${tm}</li>`;
         })
         .join('');
-      return `${g.title ? `<h3>${esc(t(g.title, lang))}</h3>` : ''}<ol class="steps">${items}</ol>`;
+      return `${g.title ? `<h3>${esc(g.title)}</h3>` : ''}<ol class="steps">${items}</ol>`;
     })
     .join('');
 
-  const notes = recipe.notes.filter((x) => x.kind !== 'cooked' && (includeNotes || x.origin === 'source') && t(x.text, lang));
+  const notes = recipe.notes.filter((x) => x.kind !== 'cooked' && (includeNotes || x.origin === 'source') && x.text);
   const cooked = includeNotes ? cookedDates(recipe) : [];
   const notesHtml =
     notes.length || cooked.length
-      ? `<h2>${esc(s.notes)}</h2>${cooked.length ? `<p class="muted">${esc(s.cookedOn)}: ${cooked.map((d) => esc(formatDate(d, lang))).join(' · ')}</p>` : ''}${notes
+      ? `<h2>${esc(s.notes)}</h2>${cooked.length ? `<p class="muted">${esc(s.cookedOn)}: ${cooked.map((d) => esc(formatDate(d))).join(' · ')}</p>` : ''}${notes
           .map(
             (x) =>
-              `<div class="note">${x.origin === 'source' || x.date ? `<div class="muted small">${esc([x.origin === 'source' ? s.tip : '', x.date ? formatDate(x.date, lang) : ''].filter(Boolean).join(' · '))}</div>` : ''}${esc(t(x.text, lang))}</div>`,
+              `<div class="note">${x.origin === 'source' || x.date ? `<div class="muted small">${esc([x.origin === 'source' ? s.tip : '', x.date ? formatDate(x.date) : ''].filter(Boolean).join(' · '))}</div>` : ''}${esc(x.text)}</div>`,
           )
           .join('')}`
       : '';
@@ -77,7 +74,7 @@ export function recipeToHtml(recipe: Recipe, { lang, servings, includeNotes = tr
       ? `<div class="source"><strong>${esc(s.source)}:</strong> ${esc([src.author, src.siteName].filter(Boolean).join(' · '))}${src.url ? `<br><a href="${esc(src.url)}">${esc(src.url)}</a>` : ''}</div>`
       : '';
 
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><title>${esc(t(recipe.title, lang))}</title>
+  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>${esc(recipe.title)}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   @page { margin: 18mm 16mm; }
@@ -99,11 +96,11 @@ export function recipeToHtml(recipe: Recipe, { lang, servings, includeNotes = tr
   .source { margin-top: 18px; font-size: 10pt; color: #7A6F66; word-break: break-all; }
   @media (max-width: 500px) { .cols { display: block; } }
 </style></head><body>
-<h1>${esc(t(recipe.title, lang))}</h1>
+<h1>${esc(recipe.title)}</h1>
 ${src?.author || src?.siteName ? `<div class="meta">${esc([src?.author, src?.siteName].filter(Boolean).join(' · '))}</div>` : ''}
 ${meta.length ? `<div class="meta">${esc(meta.join('  ·  '))}</div>` : ''}
 ${recipe.imageUrl ? `<img class="hero" src="${esc(recipe.imageUrl)}">` : ''}
-${recipe.description ? `<p>${esc(t(recipe.description, lang))}</p>` : ''}
+${recipe.description ? `<p>${esc(recipe.description)}</p>` : ''}
 <div class="cols">
   <div class="left"><h2>${esc(s.ingredients)} <span class="muted small">(${esc(s.servingsFor(servings))})</span></h2>${ingredients}</div>
   <div class="right"><h2>${esc(s.preparation)}</h2>${steps}</div>

@@ -1,5 +1,5 @@
-import { slugify } from './localized';
-import { BASE_SERVINGS, SCHEMA_VERSION, type Lang, type Localized, type Note, type Recipe } from './types';
+import { slugify } from './text';
+import { BASE_SERVINGS, SCHEMA_VERSION, type Note, type Recipe } from './types';
 
 export function newId(title: string): string {
   const rand = Math.random().toString(36).slice(2, 8);
@@ -17,13 +17,12 @@ export function todayIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function emptyRecipe(lang: Lang, title = ''): Recipe {
+export function emptyRecipe(title = ''): Recipe {
   const now = new Date().toISOString();
   return {
     schemaVersion: SCHEMA_VERSION,
     id: newId(title),
-    title: { [lang]: title },
-    originalLanguage: lang,
+    title,
     servings: BASE_SERVINGS,
     thermomix: false,
     ingredientGroups: [{ items: [] }],
@@ -39,7 +38,7 @@ export function addCookedDate(recipe: Recipe, date = todayIso()): Recipe {
   return touch({ ...recipe, notes: [...recipe.notes, note] });
 }
 
-export function addNote(recipe: Recipe, text: Localized, opts: { date?: string; kind?: 'note' | 'tip' } = {}): Recipe {
+export function addNote(recipe: Recipe, text: string, opts: { date?: string; kind?: 'note' | 'tip' } = {}): Recipe {
   const note: Note = { id: noteId(), kind: opts.kind ?? 'note', text, date: opts.date, origin: 'user' };
   return touch({ ...recipe, notes: [...recipe.notes, note] });
 }
@@ -79,20 +78,53 @@ export function isRecipe(value: unknown): value is Recipe {
     !!r &&
     typeof r === 'object' &&
     typeof r.id === 'string' &&
-    typeof r.title === 'object' &&
+    typeof r.title === 'string' &&
     Array.isArray(r.ingredientGroups) &&
     Array.isArray(r.stepGroups) &&
     Array.isArray(r.notes)
   );
 }
 
-/** Languages that are fully present for title, ingredients and steps. */
-export function availableLanguages(recipe: Recipe): Lang[] {
-  const langs: Lang[] = ['nl', 'en'];
-  return langs.filter(
-    (l) =>
-      !!recipe.title[l] &&
-      recipe.ingredientGroups.every((g) => g.items.every((i) => !!i.name[l])) &&
-      recipe.stepGroups.every((g) => g.steps.every((s) => !!s.text[l])),
-  );
+type OldText = string | { nl?: string; en?: string } | undefined;
+
+/** Version 1 stored {nl, en} pairs; keep the Dutch text (or English when there is no Dutch). */
+function single(v: OldText): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === 'string') return v;
+  return v.nl?.trim() || v.en?.trim() || undefined;
+}
+
+/**
+ * Read a recipe file in any supported format and return it in the current
+ * format, or undefined if it is not a recipe.
+ */
+export function upgradeRecipe(value: unknown): Recipe | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const r = value as Record<string, unknown> & { schemaVersion?: number };
+  if (r.schemaVersion === SCHEMA_VERSION) return isRecipe(r) ? r : undefined;
+  if (r.schemaVersion !== 1) return undefined;
+  const old = r as any;
+  const upgraded = {
+    ...old,
+    schemaVersion: SCHEMA_VERSION,
+    title: single(old.title) ?? '',
+    description: single(old.description),
+    tags: old.tags?.map(single).filter(Boolean),
+    ingredientGroups: (old.ingredientGroups ?? []).map((g: any) => ({
+      title: single(g.title),
+      items: (g.items ?? []).map((i: any) => ({
+        ...i,
+        name: single(i.name) ?? '',
+        unitText: single(i.unitText),
+        note: single(i.note),
+      })),
+    })),
+    stepGroups: (old.stepGroups ?? []).map((g: any) => ({
+      title: single(g.title),
+      steps: (g.steps ?? []).map((st: any) => ({ ...st, text: single(st.text) ?? '' })),
+    })),
+    notes: (old.notes ?? []).map((n: any) => ({ ...n, text: single(n.text) })),
+  };
+  delete upgraded.originalLanguage;
+  return isRecipe(upgraded) ? upgraded : undefined;
 }

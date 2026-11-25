@@ -97,23 +97,22 @@ function formatFraction(n: number): string {
 }
 
 /** Round weights/volumes to sensible kitchen precision. */
-function formatMetric(n: number, lang: 'nl' | 'en'): string {
+function formatMetric(n: number): string {
   let rounded: number;
   if (n >= 100) rounded = Math.round(n / 5) * 5;
   else if (n >= 10) rounded = Math.round(n);
   else rounded = Math.round(n * 10) / 10;
-  const s = String(rounded);
-  return lang === 'nl' ? s.replace('.', ',') : s;
+  return String(rounded).replace('.', ',');
 }
 
-export function formatNumber(n: number, unit: Unit | undefined, lang: 'nl' | 'en'): string {
-  return FRACTION_UNITS.has(unit) ? formatFraction(n) : formatMetric(n, lang);
+export function formatNumber(n: number, unit: Unit | undefined): string {
+  return FRACTION_UNITS.has(unit) ? formatFraction(n) : formatMetric(n);
 }
 
-export function formatQuantity(q: Quantity, unit: Unit | undefined, lang: 'nl' | 'en'): string {
-  if (typeof q === 'number') return formatNumber(q, unit, lang);
-  const min = formatNumber(q.min, unit, lang);
-  const max = formatNumber(q.max, unit, lang);
+export function formatQuantity(q: Quantity, unit: Unit | undefined): string {
+  if (typeof q === 'number') return formatNumber(q, unit);
+  const min = formatNumber(q.min, unit);
+  const max = formatNumber(q.max, unit);
   return min === max ? min : `${min}–${max}`;
 }
 

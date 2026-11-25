@@ -1,70 +1,70 @@
-import { fold } from './localized';
-import type { Lang, Unit } from './types';
+import { fold } from './text';
+import type { Unit } from './types';
 
 interface UnitInfo {
-  /** Display: [singular, plural] per language. */
-  label: Record<Lang, [string, string]>;
-  /** Spellings recognised when parsing (folded, lower case). */
+  /** Display: [singular, plural]. */
+  label: [string, string];
+  /** Spellings recognised when parsing (folded, lower case). English spellings are accepted too. */
   aliases: string[];
 }
 
 export const UNIT_INFO: Record<Unit, UnitInfo> = {
-  g: { label: { nl: ['g', 'g'], en: ['g', 'g'] }, aliases: ['g', 'gr', 'gram', 'grams', 'gramme'] },
-  kg: { label: { nl: ['kg', 'kg'], en: ['kg', 'kg'] }, aliases: ['kg', 'kilo', 'kilogram', 'kilograms'] },
-  mg: { label: { nl: ['mg', 'mg'], en: ['mg', 'mg'] }, aliases: ['mg', 'milligram'] },
-  ml: { label: { nl: ['ml', 'ml'], en: ['ml', 'ml'] }, aliases: ['ml', 'milliliter', 'millilitre', 'milliliters'] },
-  cl: { label: { nl: ['cl', 'cl'], en: ['cl', 'cl'] }, aliases: ['cl', 'centiliter'] },
-  dl: { label: { nl: ['dl', 'dl'], en: ['dl', 'dl'] }, aliases: ['dl', 'deciliter'] },
-  l: { label: { nl: ['l', 'l'], en: ['l', 'l'] }, aliases: ['l', 'liter', 'litre', 'liters', 'litres', 'ltr'] },
+  g: { label: ['g', 'g'], aliases: ['g', 'gr', 'gram', 'grams', 'gramme'] },
+  kg: { label: ['kg', 'kg'], aliases: ['kg', 'kilo', 'kilogram', 'kilograms'] },
+  mg: { label: ['mg', 'mg'], aliases: ['mg', 'milligram'] },
+  ml: { label: ['ml', 'ml'], aliases: ['ml', 'milliliter', 'millilitre', 'milliliters'] },
+  cl: { label: ['cl', 'cl'], aliases: ['cl', 'centiliter'] },
+  dl: { label: ['dl', 'dl'], aliases: ['dl', 'deciliter'] },
+  l: { label: ['l', 'l'], aliases: ['l', 'liter', 'litre', 'liters', 'litres', 'ltr'] },
   tsp: {
-    label: { nl: ['tl', 'tl'], en: ['tsp', 'tsp'] },
+    label: ['tl', 'tl'],
     aliases: ['tl', 'theelepel', 'theelepels', 'kl', 'koffielepel', 'koffielepels', 'tsp', 'teaspoon', 'teaspoons', 'tsps'],
   },
   tbsp: {
-    label: { nl: ['el', 'el'], en: ['tbsp', 'tbsp'] },
+    label: ['el', 'el'],
     aliases: ['el', 'eetlepel', 'eetlepels', 'soeplepel', 'soeplepels', 'tbsp', 'tbs', 'tablespoon', 'tablespoons'],
   },
-  cup: { label: { nl: ['kopje', 'kopjes'], en: ['cup', 'cups'] }, aliases: ['kop', 'kopje', 'kopjes', 'cup', 'cups'] },
+  cup: { label: ['kopje', 'kopjes'], aliases: ['kop', 'kopje', 'kopjes', 'cup', 'cups'] },
   piece: {
-    label: { nl: ['stuk', 'stuks'], en: ['piece', 'pieces'] },
+    label: ['stuk', 'stuks'],
     aliases: ['stuk', 'stuks', 'st', 'piece', 'pieces', 'pc', 'pcs'],
   },
   clove: {
-    label: { nl: ['teentje', 'teentjes'], en: ['clove', 'cloves'] },
+    label: ['teentje', 'teentjes'],
     aliases: ['teen', 'teentje', 'teentjes', 'tenen', 'clove', 'cloves'],
   },
   pinch: {
-    label: { nl: ['snuifje', 'snuifjes'], en: ['pinch', 'pinches'] },
+    label: ['snuifje', 'snuifjes'],
     aliases: ['snuif', 'snuifje', 'snuifjes', 'snufje', 'snufjes', 'mespunt', 'mespuntje', 'pinch', 'pinches'],
   },
   bunch: {
-    label: { nl: ['bosje', 'bosjes'], en: ['bunch', 'bunches'] },
+    label: ['bosje', 'bosjes'],
     aliases: ['bos', 'bosje', 'bosjes', 'bunch', 'bunches'],
   },
   sprig: {
-    label: { nl: ['takje', 'takjes'], en: ['sprig', 'sprigs'] },
+    label: ['takje', 'takjes'],
     aliases: ['tak', 'takje', 'takjes', 'sprig', 'sprigs'],
   },
   slice: {
-    label: { nl: ['sneetje', 'sneetjes'], en: ['slice', 'slices'] },
+    label: ['sneetje', 'sneetjes'],
     aliases: ['snee', 'sneetje', 'sneetjes', 'sneden', 'plak', 'plakje', 'plakjes', 'plakken', 'slice', 'slices'],
   },
-  can: { label: { nl: ['blik', 'blikken'], en: ['can', 'cans'] }, aliases: ['blik', 'blikje', 'blikken', 'can', 'cans', 'tin', 'tins'] },
-  jar: { label: { nl: ['pot', 'potten'], en: ['jar', 'jars'] }, aliases: ['pot', 'potje', 'potten', 'bokaal', 'jar', 'jars'] },
+  can: { label: ['blik', 'blikken'], aliases: ['blik', 'blikje', 'blikken', 'can', 'cans', 'tin', 'tins'] },
+  jar: { label: ['pot', 'potten'], aliases: ['pot', 'potje', 'potten', 'bokaal', 'jar', 'jars'] },
   pack: {
-    label: { nl: ['pak', 'pakken'], en: ['pack', 'packs'] },
+    label: ['pak', 'pakken'],
     aliases: ['pak', 'pakje', 'pakjes', 'pakken', 'zakje', 'zakjes', 'pack', 'packs', 'packet', 'packets', 'package'],
   },
   handful: {
-    label: { nl: ['handvol', 'handvol'], en: ['handful', 'handfuls'] },
+    label: ['handvol', 'handvol'],
     aliases: ['handvol', 'handjevol', 'handful', 'handfuls'],
   },
-  leaf: { label: { nl: ['blad', 'blaadjes'], en: ['leaf', 'leaves'] }, aliases: ['blad', 'blaadje', 'blaadjes', 'bladeren', 'leaf', 'leaves'] },
+  leaf: { label: ['blad', 'blaadjes'], aliases: ['blad', 'blaadje', 'blaadjes', 'bladeren', 'leaf', 'leaves'] },
   stalk: {
-    label: { nl: ['stengel', 'stengels'], en: ['stalk', 'stalks'] },
+    label: ['stengel', 'stengels'],
     aliases: ['stengel', 'stengels', 'stengeltje', 'stalk', 'stalks', 'stick', 'sticks'],
   },
-  dash: { label: { nl: ['scheutje', 'scheutjes'], en: ['dash', 'dashes'] }, aliases: ['scheut', 'scheutje', 'scheutjes', 'dash', 'dashes', 'splash'] },
+  dash: { label: ['scheutje', 'scheutjes'], aliases: ['scheut', 'scheutje', 'scheutjes', 'dash', 'dashes', 'splash'] },
 };
 
 const ALIAS_TO_UNIT = new Map<string, Unit>();
@@ -76,7 +76,7 @@ export function unitFromText(text: string): Unit | undefined {
   return ALIAS_TO_UNIT.get(fold(text.replace(/\.$/, '')));
 }
 
-export function unitLabel(unit: Unit, lang: Lang, amount: number | undefined): string {
-  const [singular, plural] = UNIT_INFO[unit].label[lang];
+export function unitLabel(unit: Unit, amount: number | undefined): string {
+  const [singular, plural] = UNIT_INFO[unit].label;
   return amount !== undefined && amount > 1 ? plural : singular;
 }

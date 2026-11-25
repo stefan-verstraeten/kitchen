@@ -1,21 +1,21 @@
-import { fold } from './localized';
-import type { Lang, Localized } from './types';
+import { fold } from './text';
 
 /**
- * Canonical ingredients with Dutch and English names. The key ties together
- * the same ingredient across recipes and languages for the ingredient index.
- * Extra entries (e.g. produced by translation at import time) are stored in
- * Dropbox as `ingredients.json` and merged in with `registerCatalogEntries`.
+ * Common ingredients. The key ties together different spellings of the same
+ * ingredient ("ui", "uien", "ajuin") so the ingredient index lists it once,
+ * under its Dutch name. English spellings are kept as synonyms so pasted or
+ * imported English text is still recognised.
  */
 export interface CatalogEntry {
   key: string;
-  name: Required<Localized>;
-  /** Extra spellings / plurals (any language). */
-  synonyms?: string[];
+  /** Name shown in the ingredient index. */
+  name: string;
+  /** Other spellings / plurals. */
+  synonyms: string[];
 }
 
-// [key, nl, en, ...synonyms]
-const BUILTIN: [string, string, string, ...string[]][] = [
+// [key, Dutch name, ...synonyms]
+const BUILTIN: [string, string, ...string[]][] = [
   ['onion', 'ui', 'onion', 'uien', 'onions', 'ajuin', 'ajuinen', 'gele ui'],
   ['red-onion', 'rode ui', 'red onion', 'rode uien', 'red onions', 'rode ajuin'],
   ['shallot', 'sjalot', 'shallot', 'sjalotten', 'sjalotje', 'sjalotjes', 'shallots'],
@@ -153,32 +153,18 @@ const BUILTIN: [string, string, string, ...string[]][] = [
 ];
 
 const entries = new Map<string, CatalogEntry>();
-const lookup = new Map<string, string>(); // folded name -> key
+const lookup = new Map<string, string>(); // folded spelling -> key
 
-function addEntry(entry: CatalogEntry) {
-  entries.set(entry.key, entry);
-  for (const s of [entry.name.nl, entry.name.en, ...(entry.synonyms ?? [])]) {
-    const f = fold(s);
-    if (f && !lookup.has(f)) lookup.set(f, entry.key);
-  }
-}
-
-for (const [key, nl, en, ...synonyms] of BUILTIN) addEntry({ key, name: { nl, en }, synonyms });
-
-/** Merge user/LLM-provided entries (stored in Dropbox). Later entries win for names. */
-export function registerCatalogEntries(extra: CatalogEntry[]) {
-  for (const e of extra) {
-    const existing = entries.get(e.key);
-    addEntry(existing ? { ...e, synonyms: [...(existing.synonyms ?? []), ...(e.synonyms ?? [])] } : e);
+for (const [key, name, ...synonyms] of BUILTIN) {
+  entries.set(key, { key, name, synonyms });
+  for (const spelling of [name, ...synonyms]) {
+    const f = fold(spelling);
+    if (f && !lookup.has(f)) lookup.set(f, key);
   }
 }
 
 export function catalogEntry(key: string): CatalogEntry | undefined {
   return entries.get(key);
-}
-
-export function allCatalogEntries(): CatalogEntry[] {
-  return [...entries.values()];
 }
 
 // Adjectives that rarely change which ingredient it is.
@@ -192,11 +178,11 @@ const DESCRIPTORS = new Set(
 );
 
 /**
- * Map an ingredient name in any language to a catalog key.
+ * Map an ingredient name to a catalog key.
  * Tries an exact match, then without descriptors, then the longest known
  * phrase contained in the name ("kleine rode ui" -> red-onion).
  */
-export function ingredientKeyFor(name: string, _lang?: Lang): string | undefined {
+export function ingredientKeyFor(name: string): string | undefined {
   const folded = fold(name);
   if (!folded) return undefined;
   const exact = lookup.get(folded);

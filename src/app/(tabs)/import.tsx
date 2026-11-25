@@ -3,16 +3,16 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 
 import type { Recipe } from '../../domain/types';
-import { availableLanguages } from '../../domain/recipe';
 import { importFromText, importFromUrl, ImportError } from '../../import/importRecipe';
 import { useApp } from '../../state/AppContext';
 import { Button, Segmented } from '../../ui/components';
+import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
 type Mode = 'url' | 'text';
 
 export default function ImportScreen() {
-  const { s, lang, apiKey, store } = useApp();
+  const { apiKey, store } = useApp();
   const [mode, setMode] = useState<Mode>('url');
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
@@ -20,7 +20,6 @@ export default function ImportScreen() {
   const [author, setAuthor] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
 
   const finish = async (recipe: Recipe) => {
     await store.save(recipe);
@@ -28,14 +27,12 @@ export default function ImportScreen() {
     setText('');
     setSourceUrl('');
     setAuthor('');
-    setNotice(availableLanguages(recipe).length < 2 ? s.importedSingleLanguage : undefined);
     router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } });
   };
 
   const run = async () => {
     setBusy(true);
     setError(undefined);
-    setNotice(undefined);
     try {
       if (mode === 'url') {
         await finish(await importFromUrl(url.trim(), { apiKey }));
@@ -43,7 +40,7 @@ export default function ImportScreen() {
         await finish(await importFromText(text, { apiKey, url: sourceUrl.trim() || undefined, author: author.trim() || undefined }));
       }
     } catch (e) {
-      if (e instanceof ImportError) setError([e.message, e.hint?.[lang]].filter(Boolean).join('\n\n'));
+      if (e instanceof ImportError) setError([e.message, e.hint].filter(Boolean).join('\n\n'));
       else setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -107,7 +104,6 @@ export default function ImportScreen() {
             <Text style={[ui.body, { color: colors.danger }]}>{error}</Text>
           </View>
         )}
-        {notice && <Text style={ui.muted}>{notice}</Text>}
 
         <View style={{ marginTop: 24 }}>
           <Button title={s.writeYourself} kind="secondary" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: 'new' } })} />

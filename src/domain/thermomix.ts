@@ -1,4 +1,4 @@
-import type { Lang, ThermomixMode, ThermomixSetting, ThermomixSpeed } from './types';
+import type { ThermomixMode, ThermomixSetting, ThermomixSpeed } from './types';
 
 /**
  * Parses Thermomix notations as written by Cookidoo and similar sources, in
@@ -104,48 +104,27 @@ export function looksLikeThermomix(texts: string[]): boolean {
 
 // ---- formatting ----------------------------------------------------------
 
-const LABELS: Record<Lang, { speed: string; spoon: string; reverse: string; modes: Record<ThermomixMode, string> }> = {
-  nl: {
-    speed: 'snelheid',
-    spoon: 'lepel',
-    reverse: 'omgekeerde draairichting',
-    modes: {
-      knead: 'kneden',
-      turbo: 'turbo',
-      browning: 'aanbraden',
-      steam: 'stomen',
-      'slow-cook': 'langzaam garen',
-      'sous-vide': 'sous-vide',
-      fermentation: 'fermenteren',
-      'warm-up': 'opwarmen',
-      'rice-cooker': 'rijstkoker',
-      blend: 'mixen',
-      'egg-boiler': 'eierkoker',
-      'pre-clean': 'voorreinigen',
-    },
-  },
-  en: {
-    speed: 'speed',
-    spoon: 'spoon',
-    reverse: 'reverse',
-    modes: {
-      knead: 'dough mode',
-      turbo: 'turbo',
-      browning: 'browning',
-      steam: 'steaming',
-      'slow-cook': 'slow cook',
-      'sous-vide': 'sous-vide',
-      fermentation: 'fermentation',
-      'warm-up': 'warm up',
-      'rice-cooker': 'rice cooker',
-      blend: 'blend',
-      'egg-boiler': 'egg boiler',
-      'pre-clean': 'pre-clean',
-    },
+const LABELS: { speed: string; spoon: string; reverse: string; modes: Record<ThermomixMode, string> } = {
+  speed: 'snelheid',
+  spoon: 'lepel',
+  reverse: 'omgekeerde draairichting',
+  modes: {
+    knead: 'kneden',
+    turbo: 'turbo',
+    browning: 'aanbraden',
+    steam: 'stomen',
+    'slow-cook': 'langzaam garen',
+    'sous-vide': 'sous-vide',
+    fermentation: 'fermenteren',
+    'warm-up': 'opwarmen',
+    'rice-cooker': 'rijstkoker',
+    blend: 'mixen',
+    'egg-boiler': 'eierkoker',
+    'pre-clean': 'voorreinigen',
   },
 };
 
-export function formatDuration(seconds: number, lang: Lang): string {
+export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds} sec`;
   if (seconds < 3600) {
     const m = Math.floor(seconds / 60);
@@ -154,18 +133,17 @@ export function formatDuration(seconds: number, lang: Lang): string {
   }
   const h = Math.floor(seconds / 3600);
   const m = Math.round((seconds % 3600) / 60);
-  const hour = lang === 'nl' ? 'u' : 'h';
-  return m ? `${h} ${hour} ${m} min` : `${h} ${hour}`;
+  return m ? `${h} u ${m} min` : `${h} u`;
 }
 
 /** Uniform rendering, e.g. "3 min / 100 °C / omgekeerde draairichting / snelheid 1". */
-export function formatThermomixSetting(s: ThermomixSetting, lang: Lang): string {
-  const L = LABELS[lang];
+export function formatThermomixSetting(s: ThermomixSetting): string {
+  const L = LABELS;
   const parts: string[] = [];
   if (s.mode) parts.push(L.modes[s.mode]);
-  if (s.timeSeconds !== undefined) parts.push(formatDuration(s.timeSeconds, lang));
+  if (s.timeSeconds !== undefined) parts.push(formatDuration(s.timeSeconds));
   if (s.temperature !== undefined) parts.push(s.temperature === 'varoma' ? 'Varoma' : `${s.temperature} °C`);
   if (s.reverse) parts.push(L.reverse);
-  if (s.speed !== undefined) parts.push(`${L.speed} ${s.speed === 'spoon' ? L.spoon : String(s.speed).replace('.', lang === 'nl' ? ',' : '.')}`);
+  if (s.speed !== undefined) parts.push(`${L.speed} ${s.speed === 'spoon' ? L.spoon : String(s.speed).replace('.', ',')}`);
   return parts.join(' / ');
 }

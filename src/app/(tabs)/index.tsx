@@ -2,18 +2,18 @@ import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import { searchRecipes } from '../../domain/ingredientIndex';
-import { t } from '../../domain/localized';
 import { useApp } from '../../state/AppContext';
 import { RecipeCard } from '../../ui/components';
+import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
 export default function RecipesScreen() {
-  const { recipes, lang, s, dropboxConnected, sync, syncing } = useApp();
+  const { recipes, dropboxConnected, sync, syncing } = useApp();
   const [query, setQuery] = useState('');
 
   const list = useMemo(
-    () => searchRecipes(recipes, query).sort((a, b) => t(a.title, lang).localeCompare(t(b.title, lang), lang)),
-    [recipes, query, lang],
+    () => searchRecipes(recipes, query).sort((a, b) => a.title.localeCompare(b.title, 'nl')),
+    [recipes, query],
   );
 
   return (

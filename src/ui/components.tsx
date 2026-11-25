@@ -2,11 +2,10 @@ import { Link } from 'expo-router';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { t } from '../domain/localized';
 import { cookedDates } from '../domain/recipe';
 import { formatThermomixSetting } from '../domain/thermomix';
-import type { Lang, Recipe, ThermomixSetting } from '../domain/types';
-import { useApp } from '../state/AppContext';
+import type { Recipe, ThermomixSetting } from '../domain/types';
+import { s } from './strings';
 import { colors, ui } from './theme';
 
 export function Button({
@@ -66,22 +65,7 @@ export function Segmented<T extends string>({
   );
 }
 
-export function LanguageToggle() {
-  const { lang, setLang } = useApp();
-  return (
-    <Segmented
-      options={[
-        { value: 'nl', label: 'NL' },
-        { value: 'en', label: 'EN' },
-      ]}
-      value={lang}
-      onChange={(l) => setLang(l as Lang)}
-    />
-  );
-}
-
 export function ThermomixBadge() {
-  const { s } = useApp();
   return (
     <View style={[ui.pill, { backgroundColor: colors.tmSoft }]}>
       <Text style={{ color: colors.tm, fontSize: 12, fontWeight: '600' }}>{s.thermomix}</Text>
@@ -89,16 +73,15 @@ export function ThermomixBadge() {
   );
 }
 
-export function ThermomixChip({ setting, lang }: { setting: ThermomixSetting; lang: Lang }) {
+export function ThermomixChip({ setting }: { setting: ThermomixSetting }) {
   return (
     <View style={styles.tmChip}>
-      <Text style={styles.tmChipText}>⚙︎ {formatThermomixSetting(setting, lang)}</Text>
+      <Text style={styles.tmChipText}>⚙︎ {formatThermomixSetting(setting)}</Text>
     </View>
   );
 }
 
 export function RecipeCard({ recipe }: { recipe: Recipe }) {
-  const { lang, s } = useApp();
   const cooked = cookedDates(recipe);
   return (
     <Link href={{ pathname: '/recipe/[id]', params: { id: recipe.id } }} asChild>
@@ -107,7 +90,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
           {recipe.imageUrl ? <Image source={{ uri: recipe.imageUrl }} style={styles.thumb} /> : <View style={[styles.thumb, styles.thumbEmpty]} />}
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={ui.h3} numberOfLines={2}>
-              {t(recipe.title, lang)}
+              {recipe.title}
             </Text>
             {(recipe.source?.author || recipe.source?.siteName) && (
               <Text style={ui.muted} numberOfLines={1}>

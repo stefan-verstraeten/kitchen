@@ -3,21 +3,17 @@ import { ScrollView, Text, TextInput, View } from 'react-native';
 
 import { DROPBOX_APP_KEY, useDropboxSignIn } from '../../storage/dropboxAuth';
 import { useApp } from '../../state/AppContext';
-import { Button, LanguageToggle, Section } from '../../ui/components';
+import { Button, Section } from '../../ui/components';
+import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
 export default function SettingsScreen() {
   const app = useApp();
-  const { s, lang } = app;
   const { ready, signIn } = useDropboxSignIn(app.tokens, app.onDropboxConnected);
   const [keyDraft, setKeyDraft] = useState('');
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
-      <Section title={s.language}>
-        <LanguageToggle />
-      </Section>
-
       <Section title={s.dropbox}>
         <View style={[ui.card, { gap: 10 }]}>
           {!DROPBOX_APP_KEY ? (
@@ -26,7 +22,7 @@ export default function SettingsScreen() {
             <>
               <Text style={ui.body}>{s.dropboxConnectedAs(app.dropboxAccount ?? '…')}</Text>
               <Text style={ui.muted}>{s.dropboxFolder}</Text>
-              {app.lastSync && <Text style={ui.muted}>{s.lastSync(app.lastSync.toLocaleString(lang === 'nl' ? 'nl-BE' : 'en-GB'))}</Text>}
+              {app.lastSync && <Text style={ui.muted}>{s.lastSync(app.lastSync.toLocaleString('nl-BE'))}</Text>}
               {app.pending > 0 && <Text style={ui.muted}>{s.pending(app.pending)}</Text>}
               {app.syncError && <Text style={{ color: colors.danger }}>{`${s.syncFailed}: ${app.syncError}`}</Text>}
               <Button title={app.syncing ? s.syncing : s.syncNow} onPress={app.sync} busy={app.syncing} />

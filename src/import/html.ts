@@ -101,10 +101,6 @@ export function metaContent(html: string, name: string): string | undefined {
   return v ? decodeEntities(v) : undefined;
 }
 
-export function htmlLang(html: string): string | undefined {
-  return /<html[^>]*\slang\s*=\s*["']([^"']+)["']/i.exec(html)?.[1];
-}
-
 /** Main readable content, limited in size, for the AI-based extractor. */
 export function mainText(html: string, maxChars = 60000): string {
   const main = /<main[\s\S]*?<\/main>/i.exec(html)?.[0] ?? /<article[\s\S]*?<\/article>/i.exec(html)?.[0] ?? html;

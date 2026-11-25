@@ -50,7 +50,7 @@ describe('RecipeStore', () => {
     const phone = new RecipeStore(new MemoryKv(), dropbox);
     const tablet = new RecipeStore(new MemoryKv(), dropbox);
 
-    const recipe = emptyRecipe('nl', 'Waterzooi');
+    const recipe = emptyRecipe('Waterzooi');
     await phone.save(recipe);
     expect(dropbox.files.has(`/recipes/${recipe.id}.json`)).toBe(true);
 
@@ -74,7 +74,7 @@ describe('RecipeStore', () => {
     const kv = new MemoryKv();
     const a = new RecipeStore(kv, dropbox);
     const b = new RecipeStore(new MemoryKv(), dropbox);
-    const r = emptyRecipe('en', 'Pancakes');
+    const r = emptyRecipe('Pancakes');
     await a.save(r);
     await b.sync();
     await a.remove(r.id);
@@ -82,10 +82,53 @@ describe('RecipeStore', () => {
     await b.sync();
     expect(b.get(r.id)).toBeUndefined();
 
-    const r2 = emptyRecipe('en', 'Crêpes');
+    const r2 = emptyRecipe('Crêpes');
     await a.save(r2);
     const reloaded = new RecipeStore(kv);
     await reloaded.load();
-    expect(reloaded.get(r2.id)?.title.en).toBe('Crêpes');
+    expect(reloaded.get(r2.id)?.title).toBe('Crêpes');
+  });
+});
+
+describe('old two-language format', () => {
+  const v1 = {
+    schemaVersion: 1,
+    id: 'soep-abc123',
+    title: { nl: 'Soep', en: 'Soup' },
+    originalLanguage: 'nl',
+    servings: 4,
+    thermomix: false,
+    ingredientGroups: [{ title: { en: 'Base' }, items: [{ key: 'onion', name: { nl: 'ui', en: 'onion' }, quantity: 1, note: { nl: 'gesnipperd' } }] }],
+    stepGroups: [{ steps: [{ text: { nl: 'Kook 5 min.' } }] }],
+    notes: [{ id: 'n1', kind: 'note', text: { en: 'Only English' }, origin: 'user' }],
+    createdAt: '',
+    updatedAt: '2026-01-01T00:00:00Z',
+  };
+
+  it('converts files in Dropbox and writes them back in the new format', async () => {
+    const dropbox = new FakeDropbox();
+    await dropbox.upload('/recipes/soep-abc123.json', JSON.stringify(v1));
+    const store = new RecipeStore(new MemoryKv(), dropbox);
+    const result = await store.sync();
+    expect(store.get('soep-abc123')).toMatchObject({
+      schemaVersion: 2,
+      title: 'Soep',
+      ingredientGroups: [{ title: 'Base', items: [{ name: 'ui', note: 'gesnipperd' }] }],
+      stepGroups: [{ steps: [{ text: 'Kook 5 min.' }] }],
+      notes: [{ text: 'Only English' }],
+    });
+    expect(store.get('soep-abc123')).not.toHaveProperty('originalLanguage');
+    expect(result.uploaded).toBe(1);
+    expect(JSON.parse(dropbox.files.get('/recipes/soep-abc123.json')!.text).schemaVersion).toBe(2);
+  });
+
+  it('converts recipes cached on the device', async () => {
+    const kv = new MemoryKv();
+    await kv.setItem('kitchen:state', JSON.stringify({ meta: { 'soep-abc123': { rev: 'r1' } }, deleted: [] }));
+    await kv.setItem('kitchen:recipe:soep-abc123', JSON.stringify(v1));
+    const store = new RecipeStore(kv);
+    await store.load();
+    expect(store.get('soep-abc123')?.title).toBe('Soep');
+    expect(store.pendingCount()).toBe(1);
   });
 });

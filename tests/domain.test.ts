@@ -17,16 +17,16 @@ describe('quantities', () => {
   });
 
   it('formats for the kitchen', () => {
-    expect(formatQuantity(0.5, 'tbsp', 'nl')).toBe('½');
-    expect(formatQuantity(1.33, 'piece', 'en')).toBe('1⅓');
-    expect(formatQuantity(333.3, 'g', 'nl')).toBe('335');
-    expect(formatQuantity(1.25, 'l', 'nl')).toBe('1,3');
-    expect(formatQuantity({ min: 1, max: 1.5 }, undefined, 'en')).toBe('1–1½');
+    expect(formatQuantity(0.5, 'tbsp')).toBe('½');
+    expect(formatQuantity(1.33, 'piece')).toBe('1⅓');
+    expect(formatQuantity(333.3, 'g')).toBe('335');
+    expect(formatQuantity(1.25, 'l')).toBe('1,3');
+    expect(formatQuantity({ min: 1, max: 1.5 }, undefined)).toBe('1–1½');
   });
 
   it('scales from the base of 4', () => {
-    expect(quantityFor({ name: {}, quantity: 200, unit: 'g' }, 6, 4)).toBe(300);
-    expect(quantityFor({ name: {}, quantity: 1, unit: 'pinch', scalable: false }, 8, 4)).toBe(1);
+    expect(quantityFor({ name: 'x', quantity: 200, unit: 'g' }, 6, 4)).toBe(300);
+    expect(quantityFor({ name: 'x', quantity: 1, unit: 'pinch', scalable: false }, 8, 4)).toBe(1);
   });
 
   it('reads servings', () => {
@@ -38,26 +38,26 @@ describe('quantities', () => {
 
 describe('ingredient lines', () => {
   it('parses Dutch lines', () => {
-    const a = parseIngredientLine('200 g bloem', 'nl');
-    expect(a).toMatchObject({ quantity: 200, unit: 'g', name: { nl: 'bloem' }, key: 'flour' });
-    const b = parseIngredientLine('2 uien, fijngesnipperd', 'nl');
-    expect(b).toMatchObject({ quantity: 2, name: { nl: 'uien' }, note: { nl: 'fijngesnipperd' }, key: 'onion' });
-    const c = parseIngredientLine('1-2 teentjes look (optioneel)', 'nl');
-    expect(c).toMatchObject({ quantity: { min: 1, max: 2 }, unit: 'clove', name: { nl: 'look' }, optional: true, key: 'garlic' });
-    const d = parseIngredientLine('zout en peper', 'nl');
+    const a = parseIngredientLine('200 g bloem');
+    expect(a).toMatchObject({ quantity: 200, unit: 'g', name: 'bloem', key: 'flour' });
+    const b = parseIngredientLine('2 uien, fijngesnipperd');
+    expect(b).toMatchObject({ quantity: 2, name: 'uien', note: 'fijngesnipperd', key: 'onion' });
+    const c = parseIngredientLine('1-2 teentjes look (optioneel)');
+    expect(c).toMatchObject({ quantity: { min: 1, max: 2 }, unit: 'clove', name: 'look', optional: true, key: 'garlic' });
+    const d = parseIngredientLine('zout en peper');
     expect(d).toMatchObject({ scalable: false, key: 'salt-and-pepper' });
-    expect(parseIngredientLine('3 el olijfolie', 'nl')).toMatchObject({ unit: 'tbsp', key: 'olive-oil' });
+    expect(parseIngredientLine('3 el olijfolie')).toMatchObject({ unit: 'tbsp', key: 'olive-oil' });
   });
 
   it('parses English lines', () => {
-    expect(parseIngredientLine('2 tbsp olive oil, divided', 'en')).toMatchObject({
+    expect(parseIngredientLine('2 tbsp olive oil, divided')).toMatchObject({
       quantity: 2,
       unit: 'tbsp',
-      name: { en: 'olive oil' },
-      note: { en: 'divided' },
+      name: 'olive oil',
+      note: 'divided',
       key: 'olive-oil',
     });
-    expect(parseIngredientLine('1 small red onion', 'en').key).toBe('red-onion');
+    expect(parseIngredientLine('1 small red onion').key).toBe('red-onion');
   });
 
   it('maps names in both languages to one key', () => {
@@ -90,31 +90,31 @@ describe('thermomix', () => {
     expect(parseThermomixSettings('Voeg 10 stuks toe.')).toEqual([]);
   });
 
-  it('formats uniformly in both languages', () => {
+  it('formats uniformly in Dutch', () => {
     const s = { timeSeconds: 180, temperature: 100, reverse: true, speed: 'spoon' as const };
-    expect(formatThermomixSetting(s, 'nl')).toBe('3 min / 100 °C / omgekeerde draairichting / snelheid lepel');
-    expect(formatThermomixSetting(s, 'en')).toBe('3 min / 100 °C / reverse / speed spoon');
+    expect(formatThermomixSetting(s)).toBe('3 min / 100 °C / omgekeerde draairichting / snelheid lepel');
+    expect(formatThermomixSetting({ timeSeconds: 5400, speed: 0.5 })).toBe('1 u 30 min / snelheid 0,5');
   });
 });
 
 describe('ingredient index', () => {
-  it('groups recipes and searches in both languages', () => {
-    const a = emptyRecipe('nl', 'Stoofvlees');
-    a.ingredientGroups[0].items.push(parseIngredientLine('2 ajuinen', 'nl'), parseIngredientLine('1 kg stoofvlees', 'nl'));
-    const b = emptyRecipe('en', 'Onion soup');
-    b.ingredientGroups[0].items.push(parseIngredientLine('6 onions', 'en'), parseIngredientLine('1 tbsp mystery spice', 'en'));
+  it('groups spellings of the same ingredient and searches synonyms', () => {
+    const a = emptyRecipe('Stoofvlees');
+    a.ingredientGroups[0].items.push(parseIngredientLine('2 ajuinen'), parseIngredientLine('1 kg stoofvlees'));
+    const b = emptyRecipe('Onion soup');
+    b.ingredientGroups[0].items.push(parseIngredientLine('6 onions'), parseIngredientLine('1 tbsp mystery spice'));
     const index = buildIngredientIndex([a, b]);
     const onion = index.find((e) => e.key === 'onion')!;
     expect(onion.recipeIds).toEqual([a.id, b.id]);
-    expect(searchIngredientIndex(index, 'ui', 'nl')[0].key).toBe('onion');
-    expect(searchIngredientIndex(index, 'onion', 'nl')[0].key).toBe('onion');
-    expect(searchIngredientIndex(index, 'mystery', 'en')[0].name.en).toBe('mystery spice');
+    expect(searchIngredientIndex(index, 'ui')[0].key).toBe('onion');
+    expect(searchIngredientIndex(index, 'onion')[0].key).toBe('onion');
+    expect(searchIngredientIndex(index, 'mystery')[0].name).toBe('mystery spice');
   });
 });
 
 describe('notes and merging', () => {
   it('keeps cooked dates from both conflicting versions', () => {
-    const base = emptyRecipe('nl', 'Soep');
+    const base = emptyRecipe('Soep');
     const left = addCookedDate(base, '2026-11-01');
     const right = { ...addCookedDate(base, '2026-11-20'), updatedAt: '2099-01-01T00:00:00Z' };
     const merged = mergeRecipes(left, right);
@@ -124,10 +124,20 @@ describe('notes and merging', () => {
 
 describe('ingredient search precision', () => {
   it('does not match short queries inside other words', () => {
-    const r = emptyRecipe('nl', 'x');
-    r.ingredientGroups[0].items.push(parseIngredientLine('1 ui', 'nl'), parseIngredientLine('33 cl bruin bier', 'nl'), parseIngredientLine('1 l bouillon', 'nl'), parseIngredientLine('500 g rundergehakt', 'nl'));
+    const r = emptyRecipe('x');
+    r.ingredientGroups[0].items.push(parseIngredientLine('1 ui'), parseIngredientLine('33 cl bruin bier'), parseIngredientLine('1 l bouillon'), parseIngredientLine('500 g rundergehakt'));
     const index = buildIngredientIndex([r]);
-    expect(searchIngredientIndex(index, 'ui', 'nl').map((e) => e.key)).toEqual(['onion']);
-    expect(searchIngredientIndex(index, 'gehakt', 'nl').length).toBe(1);
+    expect(searchIngredientIndex(index, 'ui').map((e) => e.key)).toEqual(['onion']);
+    expect(searchIngredientIndex(index, 'gehakt').length).toBe(1);
+  });
+});
+
+describe('ingredient index names', () => {
+  it('shows catalog ingredients under their Dutch name', () => {
+    const r = emptyRecipe('x');
+    r.ingredientGroups[0].items.push(parseIngredientLine('3 ajuinen'));
+    const [entry] = buildIngredientIndex([r]);
+    expect(entry).toMatchObject({ key: 'onion', name: 'ui' });
+    expect(searchIngredientIndex([entry], 'ajuin')).toHaveLength(1);
   });
 });

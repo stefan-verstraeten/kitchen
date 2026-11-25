@@ -1,6 +1,6 @@
 import { NUMBER_PATTERN, parseQuantity } from './quantity';
 import { unitFromText } from './units';
-import type { Ingredient, Lang } from './types';
+import type { Ingredient } from './types';
 import { ingredientKeyFor } from './ingredientCatalog';
 
 const OPTIONAL_RE = /\b(optioneel|facultatief|naar keuze|optional|if desired)\b/i;
@@ -17,10 +17,10 @@ const LEADING_QTY = new RegExp(
  *   "2 tbsp olive oil, divided", "zout en peper".
  * The quantity is returned as written; normalizing to BASE_SERVINGS happens later.
  */
-export function parseIngredientLine(line: string, lang: Lang): Ingredient {
+export function parseIngredientLine(line: string): Ingredient {
   const raw = line.replace(/\s+/g, ' ').trim();
   let rest = raw;
-  const result: Ingredient = { name: {}, raw };
+  const result: Ingredient = { name: '', raw };
 
   const qtyMatch = LEADING_QTY.exec(rest);
   if (qtyMatch) {
@@ -55,14 +55,14 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
   }
 
   const name = rest.replace(/\s+/g, ' ').trim();
-  result.name = { [lang]: name || raw };
+  result.name = name || raw;
   const note = notes.filter(Boolean).join(', ');
-  if (note) result.note = { [lang]: note };
+  if (note) result.note = note;
   if (OPTIONAL_RE.test(raw)) result.optional = true;
   if (TO_TASTE_RE.test(raw) && result.quantity === undefined) result.scalable = false;
   if (result.unit === 'pinch' || result.unit === 'dash') result.scalable = false;
 
-  const key = ingredientKeyFor(name, lang);
+  const key = ingredientKeyFor(name);
   if (key) result.key = key;
   return result;
 }
