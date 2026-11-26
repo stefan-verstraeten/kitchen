@@ -37,7 +37,8 @@ function headerJson(value: unknown): string {
 export class DropboxClient {
   constructor(
     private readonly getAccessToken: () => Promise<string>,
-    private readonly fetchImpl: typeof fetch = fetch,
+    // Wrapped so fetch is not called as a method of this object (browsers reject that).
+    private readonly fetchImpl: typeof fetch = (input, init) => fetch(input, init),
   ) {}
 
   private async call(url: string, init: RequestInit & { headers: Record<string, string> }): Promise<Response> {

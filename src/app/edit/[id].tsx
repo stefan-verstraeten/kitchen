@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import { editStep, ingredientsToText, textToIngredients } from '../../domain/editing';
 import { emptyRecipe, newId, touch } from '../../domain/recipe';
@@ -9,6 +9,7 @@ import { parseThermomixSettings } from '../../domain/thermomix';
 import type { IngredientGroup, Recipe, Step, StepGroup } from '../../domain/types';
 import { useApp } from '../../state/AppContext';
 import { Button, Section, ThermomixChip } from '../../ui/components';
+import { confirmAction, showMessage } from '../../ui/dialogs';
 import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
@@ -78,10 +79,7 @@ export default function EditRecipeScreen() {
     };
 
   const disablePrevention = usePreventRemove(dirty, ({ repeat }) => {
-    Alert.alert(s.discardTitle, undefined, [
-      { text: s.keepEditing, style: 'cancel' },
-      { text: s.discard, style: 'destructive', onPress: repeat },
-    ]);
+    confirmAction({ title: s.discardTitle, confirm: s.discard, cancel: s.keepEditing, destructive: true }).then((ok) => ok && repeat());
   });
 
   const build = (): Recipe => {
@@ -125,13 +123,14 @@ export default function EditRecipeScreen() {
   };
 
   const save = async () => {
-    if (!title.trim()) return Alert.alert(s.titleRequired);
+    if (!title.trim()) return showMessage(s.titleRequired);
     const recipe = build();
     await store.save(recipe);
     disablePrevention();
     setDirty(false);
     if (isNew) router.replace({ pathname: '/recipe/[id]', params: { id: recipe.id } });
-    else router.back();
+    else if (router.canGoBack()) router.back();
+    else router.replace({ pathname: '/recipe/[id]', params: { id: recipe.id } });
   };
 
   const updateStepGroup = (gi: number, fn: (g: StepGroupDraft) => StepGroupDraft) =>

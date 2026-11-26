@@ -22,6 +22,7 @@ export default function RootLayout() {
           <Stack.Screen name="recipe/[id]" options={{ title: '' }} />
           <Stack.Screen name="ingredient/[key]" options={{ title: '' }} />
           <Stack.Screen name="edit/[id]" options={{ title: '' }} />
+          <Stack.Screen name="oauth" options={{ title: 'Dropbox', headerShown: false }} />
         </Stack>
       </AppProvider>
     </SafeAreaProvider>

@@ -21,7 +21,13 @@
       "package": "be.kitchen.recipes"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "Kitchen",
+      "shortName": "Kitchen",
+      "themeColor": "#FBF8F3",
+      "backgroundColor": "#FBF8F3",
+      "lang": "nl"
     },
     "plugins": [
       "expo-router",
@@ -31,7 +37,8 @@
     ],
     "scheme": "kitchen",
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/kitchen"
     }
   }
 }

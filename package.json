@@ -17,6 +17,7 @@
     "expo-sharing": "~58.0.23",
     "expo-status-bar": "~58.0.5",
     "expo-web-browser": "~58.1.0",
+    "pdfmake": "0.3.14",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.1",
@@ -26,6 +27,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/pdfmake": "0.3.3",
     "@types/react": "~19.3.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
@@ -39,7 +41,8 @@
     "web": "expo start --web",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build:web": "expo export --platform web && node scripts/prepare-web.mjs dist"
   },
   "private": true
 }

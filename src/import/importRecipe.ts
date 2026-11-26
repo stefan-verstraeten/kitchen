@@ -1,5 +1,5 @@
 import type { Recipe } from '../domain/types';
-import { aiRecipeFromText } from './ai';
+import { aiFetchPageText, aiRecipeFromText } from './ai';
 import { findRecipeJsonLd, mainText, metaContent } from './html';
 import { recipeFromJsonLd } from './jsonld';
 import { siteProfile } from './sources';
@@ -59,14 +59,30 @@ export async function importFromHtml(url: string, html: string, opts: ImportOpti
 
 export async function importFromUrl(url: string, opts: ImportOptions = {}): Promise<Recipe> {
   const doFetch = opts.fetchImpl ?? fetch;
-  let res: Response;
+  let res: Response | undefined;
   try {
     res = await doFetch(url, { headers: BROWSER_HEADERS });
   } catch {
-    throw new ImportError('De pagina is niet bereikbaar. Controleer de link en je verbinding.');
+    // Network error, or (in the web app) the browser refused to read another
+    // site's page. Claude can fetch it instead.
+    if (!opts.apiKey) {
+      throw new ImportError(
+        'De pagina kon niet opgehaald worden. In de web-app is daarvoor een Claude API-sleutel nodig (Instellingen); controleer anders de link en je verbinding.',
+      );
+    }
   }
+  if (!res) return importViaClaude(url, opts.apiKey!);
   if (!res.ok) throw new ImportError(`De pagina gaf een fout (${res.status}).`, siteProfile(url).hint);
   return importFromHtml(res.url || url, await res.text(), opts);
+}
+
+async function importViaClaude(url: string, apiKey: string): Promise<Recipe> {
+  const profile = siteProfile(url);
+  const text = await aiFetchPageText(apiKey, url);
+  return aiRecipeFromText(apiKey, text, {
+    thermomix: profile.thermomix,
+    source: { url, siteName: profile.siteName || undefined, author: profile.defaultAuthor, importedAt: new Date().toISOString() },
+  });
 }
 
 /** Import from text pasted by the user (e.g. from the Cookidoo app). Requires an API key. */

@@ -38,6 +38,33 @@ language they were imported or typed in, which will normally be Dutch.
   "uien" and "ajuin" are one entry), and tapping an ingredient lists the
   recipes that use it.
 
+## Web app (iPhone home screen)
+
+The app is also published as a web app at
+**https://stefan-verstraeten.github.io/kitchen/**. Open it in Safari on the
+iPhone, tap **Share → Add to Home Screen**, and it opens full-screen like an
+app. Every push to the `claude/modest-franklin-red4fl` branch rebuilds and
+republishes it (`.github/workflows/deploy-web.yml`).
+
+One-time setup:
+
+1. GitHub → repository **Settings → Pages → Build and deployment → Source**:
+   choose **GitHub Actions**.
+2. Dropbox App Console (KitchenDB) → **Settings → OAuth 2 → Redirect URIs**:
+   add `https://stefan-verstraeten.github.io/kitchen/oauth`.
+
+Differences from the phone app:
+
+- **Importing from a link** needs the Claude API key. The browser is not
+  allowed to download other sites' pages (CORS), so Claude fetches the page
+  and reads the recipe from it.
+- **Share as PDF** builds the PDF in the browser and opens the iPhone share
+  sheet (WhatsApp, Mail, Files…).
+- Recipes, settings and the Dropbox sign-in are stored in the web app's own
+  storage on the phone. Dropbox remains the master copy.
+
+Build it locally with `npm run build:web` (output in `dist/`).
+
 ## Getting started
 
 ```bash
@@ -115,7 +142,7 @@ src/
   import/     HTML / JSON-LD parsing, site profiles, Claude extraction
   storage/    Dropbox API client, OAuth (PKCE), offline-first sync
   ui/         shared components, theme and all interface text (strings.ts)
-  export/     printable HTML and PDF sharing
+  export/     printable HTML / PDF and sharing (sharePdf.web.ts = web app)
 tests/        vitest unit tests (parsing, scaling, index, sync/merge)
 ```
 

@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { displayIngredient } from '../../domain/display';
 import { formatDate } from '../../export/recipeHtml';
@@ -9,6 +9,7 @@ import { addCookedDate, addNote, cookedDates, removeNote, todayIso } from '../..
 import type { Note, Recipe } from '../../domain/types';
 import { useApp } from '../../state/AppContext';
 import { Button, Section, ThermomixBadge, ThermomixChip } from '../../ui/components';
+import { confirmAction, showMessage } from '../../ui/dialogs';
 import { s } from '../../ui/strings';
 import { colors, ui } from '../../ui/theme';
 
@@ -46,30 +47,22 @@ export default function RecipeScreen() {
     try {
       await shareRecipePdf(recipe, { servings, dialogTitle: s.sharePdf });
     } catch (e) {
-      Alert.alert(s.error, e instanceof Error ? e.message : String(e));
+      showMessage(s.error, e instanceof Error ? e.message : String(e));
     } finally {
       setSharing(false);
     }
   };
 
-  const confirmDelete = () =>
-    Alert.alert(s.deleteRecipe, s.deleteConfirm, [
-      { text: s.cancel, style: 'cancel' },
-      {
-        text: s.delete,
-        style: 'destructive',
-        onPress: async () => {
-          await store.remove(recipe.id);
-          router.back();
-        },
-      },
-    ]);
+  const confirmDelete = async () => {
+    if (!(await confirmAction({ title: s.deleteRecipe, message: s.deleteConfirm, confirm: s.delete, cancel: s.cancel, destructive: true }))) return;
+    await store.remove(recipe.id);
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
 
-  const confirmRemoveNote = (note: Note) =>
-    Alert.alert(s.delete, undefined, [
-      { text: s.cancel, style: 'cancel' },
-      { text: s.delete, style: 'destructive', onPress: () => save(removeNote(recipe, note.id)) },
-    ]);
+  const confirmRemoveNote = async (note: Note) => {
+    if (await confirmAction({ title: s.deleteNote, confirm: s.delete, cancel: s.cancel, destructive: true })) await save(removeNote(recipe, note.id));
+  };
 
   // Steps are numbered continuously across groups.
   const stepOffsets = recipe.stepGroups.map((_, gi) => recipe.stepGroups.slice(0, gi).reduce((n, g) => n + g.steps.length, 0));

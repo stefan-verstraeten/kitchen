@@ -1,0 +1,14 @@
+{
+  "name": "Kitchen",
+  "short_name": "Kitchen",
+  "lang": "nl",
+  "start_url": "/kitchen/",
+  "scope": "/kitchen/",
+  "display": "standalone",
+  "background_color": "#FBF8F3",
+  "theme_color": "#FBF8F3",
+  "icons": [
+    { "src": "/kitchen/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/kitchen/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -152,3 +152,48 @@ export async function aiRecipeFromText(
   const ai = await extract(apiKey, `Extract the recipe from this text${base.source?.url ? ` (${base.source.url})` : ''}:\n\n<text>\n${text}\n</text>`);
   return toRecipe(ai, base);
 }
+
+/**
+ * Fetch a web page's text through Claude's web fetch tool. Used by the web
+ * app, where the browser may not download other sites' pages itself (CORS).
+ */
+export async function aiFetchPageText(apiKey: string, url: string): Promise<string> {
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new AiImportError('Ongeldige link.');
+  }
+  const messages: Anthropic.MessageParam[] = [
+    { role: 'user', content: `Fetch ${url} with the web_fetch tool. When it has been fetched, reply only with "OK".` },
+  ];
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2000,
+        output_config: { effort: 'low' },
+        tools: [{ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 2, allowed_domains: [host], max_content_tokens: 40000 }],
+        messages,
+      });
+      for (const block of response.content) {
+        if (block.type !== 'web_fetch_tool_result') continue;
+        if (block.content.type === 'web_fetch_tool_result_error') {
+          throw new AiImportError(`De pagina kon niet opgehaald worden (${block.content.error_code}).`);
+        }
+        const source = block.content.content.source;
+        if (source.type === 'text' && source.data.trim()) return source.data;
+      }
+      if (response.stop_reason !== 'pause_turn') break;
+      // Server-side tool loop paused: send the turn back to let it continue.
+      messages.push({ role: 'assistant', content: response.content });
+    }
+  } catch (e) {
+    if (e instanceof AiImportError) throw e;
+    if (e instanceof Anthropic.AuthenticationError) throw new AiImportError('Ongeldige Claude API-sleutel.');
+    if (e instanceof Anthropic.APIError) throw new AiImportError(`Fout bij Claude (${e.status ?? '?'}): ${e.message}`);
+    throw e;
+  }
+  throw new AiImportError('De pagina kon niet opgehaald worden.');
+}
