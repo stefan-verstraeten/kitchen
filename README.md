@@ -11,7 +11,7 @@ language they were imported or typed in, which will normally be Dutch.
   data (most recipe sites) are parsed on the device. For other pages, or for
   text pasted from the Cookidoo app or a cookbook, Claude extracts the recipe.
 - **Uniform storage on Dropbox**: one JSON file per recipe in
-  `Dropbox/Apps/Kitchen/recipes/`. The app works offline from a local copy and
+  `Dropbox/Apps/KitchenDB/recipes/`. The app works offline from a local copy and
   syncs both ways. If the same recipe changes on two devices, the versions are
   merged, so a "cooked on" date or a note is never lost.
 - **Ingredients for 4 people**: quantities are converted to 4 servings when a
@@ -42,7 +42,6 @@ language they were imported or typed in, which will normally be Dutch.
 
 ```bash
 npm install
-cp .env.example .env   # then fill in the Dropbox app key
 npx expo start
 ```
 
@@ -53,15 +52,18 @@ development client instead of using Expo Go:
 ### 1. Create the Dropbox app (one-time)
 
 1. Go to <https://www.dropbox.com/developers/apps> → **Create app**.
-2. Choose **Scoped access** → **App folder**, and name it `Kitchen` (the folder
-   becomes `Dropbox/Apps/Kitchen`).
+2. Choose **Scoped access** → **App folder**. This project's app is called
+   `KitchenDB`, so the folder is `Dropbox/Apps/KitchenDB`.
 3. **Permissions** tab: enable `files.content.read`, `files.content.write`,
    `account_info.read`, then click **Submit**.
 4. **Settings** tab → **OAuth 2 → Redirect URIs**: add `kitchen://oauth`
-   (plus the `exp://…/--/oauth` URI that the dev server prints, if you test that way).
-5. Copy the **App key** into `.env` as `EXPO_PUBLIC_DROPBOX_APP_KEY`.
+   (plus the `exp://…/--/oauth` URI that the dev server prints, if you test that
+   way), and check that **Allow public clients (Implicit Grant & PKCE)** is set
+   to **Allow**.
+5. The **App key** goes in `src/config.ts` (already set for KitchenDB). It is not secret. To use another Dropbox app, set
+   `EXPO_PUBLIC_DROPBOX_APP_KEY` in `.env` instead.
 
-Then open **Settings** in the app → **Connect Dropbox**.
+Then open **Instellingen** in the app → **Verbinden met Dropbox**.
 
 ### 2. Claude API key (optional)
 
@@ -74,7 +76,7 @@ translated: the recipe stays in the language of the source.
 
 ## Data format
 
-`Apps/Kitchen/recipes/<id>.json` (see `src/domain/types.ts`):
+`Apps/KitchenDB/recipes/<id>.json` (see `src/domain/types.ts`):
 
 ```jsonc
 {

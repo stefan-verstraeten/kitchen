@@ -1,12 +1,12 @@
 import * as AuthSession from 'expo-auth-session';
+import { DROPBOX_APP_KEY } from '../config';
 import { secure } from './secure';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
 
-/** Key of the Dropbox app (App console › "App key"). Public; PKCE needs no secret. */
-export const DROPBOX_APP_KEY = process.env.EXPO_PUBLIC_DROPBOX_APP_KEY ?? '';
+export { DROPBOX_APP_KEY };
 
 const discovery: AuthSession.DiscoveryDocument = {
   authorizationEndpoint: 'https://www.dropbox.com/oauth2/authorize',
